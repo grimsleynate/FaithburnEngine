@@ -1,0 +1,18 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DefaultEcs" Version="0.17.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FaithburnEngine.Components\FaithburnEngine.Components.csproj" />
+    <ProjectReference Include="..\FaithburnEngine.Systems\FaithburnEngine.Systems.csproj" />
+  </ItemGroup>
+
+</Project>
