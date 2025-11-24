@@ -25,6 +25,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FaithburnEngine.Assets", "F
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FaithburnEngine.Tools", "FaithburnEngine.Tools\FaithburnEngine.Tools.csproj", "{7DAAA12C-A590-4F50-B01B-6AF4A8ADD374}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FaithburnEngine.Tests", "FaithburnEngine.Tests\FaithburnEngine.Tests.csproj", "{D1BCAF0E-2A4F-4571-BFE8-7E6D25997636}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -167,6 +169,18 @@ Global
 		{7DAAA12C-A590-4F50-B01B-6AF4A8ADD374}.Release|x64.Build.0 = Release|Any CPU
 		{7DAAA12C-A590-4F50-B01B-6AF4A8ADD374}.Release|x86.ActiveCfg = Release|Any CPU
 		{7DAAA12C-A590-4F50-B01B-6AF4A8ADD374}.Release|x86.Build.0 = Release|Any CPU
+		{D1BCAF0E-2A4F-4571-BFE8-7E6D25997636}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D1BCAF0E-2A4F-4571-BFE8-7E6D25997636}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D1BCAF0E-2A4F-4571-BFE8-7E6D25997636}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{D1BCAF0E-2A4F-4571-BFE8-7E6D25997636}.Debug|x64.Build.0 = Debug|Any CPU
+		{D1BCAF0E-2A4F-4571-BFE8-7E6D25997636}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{D1BCAF0E-2A4F-4571-BFE8-7E6D25997636}.Debug|x86.Build.0 = Debug|Any CPU
+		{D1BCAF0E-2A4F-4571-BFE8-7E6D25997636}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D1BCAF0E-2A4F-4571-BFE8-7E6D25997636}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D1BCAF0E-2A4F-4571-BFE8-7E6D25997636}.Release|x64.ActiveCfg = Release|Any CPU
+		{D1BCAF0E-2A4F-4571-BFE8-7E6D25997636}.Release|x64.Build.0 = Release|Any CPU
+		{D1BCAF0E-2A4F-4571-BFE8-7E6D25997636}.Release|x86.ActiveCfg = Release|Any CPU
+		{D1BCAF0E-2A4F-4571-BFE8-7E6D25997636}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
