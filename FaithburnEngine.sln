@@ -9,7 +9,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FaithburnEngine.World", "Fa
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FaithburnEngine.ModAPI", "FaithburnEngine.ModAPI\FaithburnEngine.ModAPI.csproj", "{730F4E63-D720-45BE-A7BD-EFDC9FB1DCF7}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FaithburnEngine.Game", "FaithburnEngine.Game\FaithburnEngine.Game.csproj", "{0E4FE066-F71C-49BF-A0B3-84D0223F70AC}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FaithburnEngine.CoreGame", "FaithburnEngine.Game\FaithburnEngine.CoreGame.csproj", "{0E4FE066-F71C-49BF-A0B3-84D0223F70AC}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FaithburnEngine.Rendering", "FaithburnEngine.Rendering\FaithburnEngine.Rendering.csproj", "{0F1E6651-889E-486B-9DEC-A25A491BD6F9}"
 EndProject
@@ -170,5 +170,8 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {A30CB9D0-FCB9-475D-B69B-F55824FAF0CC}
 	EndGlobalSection
 EndGlobal

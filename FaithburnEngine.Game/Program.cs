@@ -1,2 +1,4 @@
-﻿using var game = new FaithburnEngine.Game.Game1();
+﻿using FaithburnEngine.CoreGame;
+
+using var game = new Faithburn();
 game.Run();

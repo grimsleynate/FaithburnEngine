@@ -5,7 +5,7 @@ using FaithburnEngine.Components;
 namespace FaithburnEngine.Systems;
 public class MovementSystem : AEntitySetSystem<float>
 {
-    public MovementSystem(World world) : base(world.GetEntities().With<Position>().With<Velocity>().AsSet()) { }
+    public MovementSystem(DefaultEcs.World world) : base(world.GetEntities().With<Position>().With<Velocity>().AsSet()) { }
 
     protected override void Update(float deltaTime, in Entity entity)
     {
