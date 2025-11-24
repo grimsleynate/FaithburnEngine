@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\FaithburnEngine.Components\FaithburnEngine.Components.csproj" />
+    <ProjectReference Include="..\FaithburnEngine.Content\FaithburnEngine.Content.csproj" />
   </ItemGroup>
 
 </Project>

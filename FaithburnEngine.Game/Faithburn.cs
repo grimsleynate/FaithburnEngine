@@ -1,8 +1,10 @@
 ﻿using DefaultEcs.System;
 using FaithburnEngine.Components;
 using FaithburnEngine.Content;
+using FaithburnEngine.Core;
 using FaithburnEngine.Rendering;
 using FaithburnEngine.Systems;
+using FaithburnEngine.World;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
@@ -15,10 +17,15 @@ public class Faithburn : Game
     private GraphicsDeviceManager _graphics; 
     private SpriteBatch _spriteBatch;
     private ContentLoader _contentLoader;
+    private PlayerContext _player;
+    private WorldGrid _worldGrid;
     private DefaultEcs.World _world;
     private InputSystem _inputSystem;
     private ISystem<float> _movementSystem;
     private SpriteRenderer _spriteRenderer;
+    private InventorySystem _inventorySystem;
+    private InteractionSystem _interactionSystem;
+    private HotbarRenderer _hotbarRenderer;
 
     public Faithburn()
     {
@@ -40,9 +47,16 @@ public class Faithburn : Game
 
     protected override void LoadContent()
     {
+        
+
+        _player = new PlayerContext(12);
+        _worldGrid = new WorldGrid(_contentLoader);
         _spriteBatch = new SpriteBatch(GraphicsDevice);
         _contentLoader = new ContentLoader(Path.Combine(AppContext.BaseDirectory, "Content", "Models"));
         _contentLoader.LoadAll();
+        _inventorySystem = new InventorySystem(_contentLoader);
+        _interactionSystem = new InteractionSystem(_contentLoader, _inventorySystem, _worldGrid);
+        _hotbarRenderer = new HotbarRenderer(_spriteBatch, _contentLoader, GraphicsDevice);
 
         if (_world == null) throw new InvalidOperationException("_world is null");
         else
