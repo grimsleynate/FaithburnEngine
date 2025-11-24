@@ -4,13 +4,16 @@
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+	  <LangVersion>latest</LangVersion>
+	  <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+	  <PlatformTarget>AnyCPU</PlatformTarget>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="AutoPipeline" Version="0.0.2" />
     <PackageReference Include="DefaultEcs" Version="0.17.2" />
     <PackageReference Include="MessagePack" Version="3.1.4" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+    <PackageReference Include="Serilog" Version="4.3.0" />
     <PackageReference Include="TexturePacker-MonoGameLoader" Version="2.0.0" />
   </ItemGroup>
 

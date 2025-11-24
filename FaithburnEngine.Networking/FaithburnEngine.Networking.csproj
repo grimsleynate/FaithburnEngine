@@ -10,13 +10,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="AutoPipeline" Version="0.0.2" />
     <PackageReference Include="MessagePack" Version="3.1.4" />
-    <PackageReference Include="TexturePacker-MonoGameLoader" Version="2.0.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\FaithburnEngine.Components\FaithburnEngine.Components.csproj" />
+    <ProjectReference Include="..\FaithburnEngine.Core\FaithburnEngine.Core.csproj" />
   </ItemGroup>
 
 </Project>

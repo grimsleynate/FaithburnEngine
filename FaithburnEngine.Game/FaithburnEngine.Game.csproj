@@ -2,6 +2,9 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net9.0</TargetFramework>
+	  <LangVersion>latest</LangVersion>
+	  <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+	  <PlatformTarget>AnyCPU</PlatformTarget>
     <RollForward>Major</RollForward>
     <PublishReadyToRun>false</PublishReadyToRun>
     <TieredCompilation>false</TieredCompilation>
@@ -24,14 +27,17 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="AutoPipeline" Version="0.0.2" />
+    <PackageReference Include="DefaultEcs" Version="0.17.2" />
     <PackageReference Include="MessagePack" Version="3.1.4" />
-    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.*" />
     <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.*" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.4.1" />
+    <PackageReference Include="Serilog" Version="4.3.0" />
     <PackageReference Include="TexturePacker-MonoGameLoader" Version="2.0.0" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\FaithburnEngine.Content\FaithburnEngine.Content.csproj" />
     <ProjectReference Include="..\FaithburnEngine.Core\FaithburnEngine.Core.csproj" />
+    <ProjectReference Include="..\FaithburnEngine.Networking\FaithburnEngine.Networking.csproj" />
     <ProjectReference Include="..\FaithburnEngine.Rendering\FaithburnEngine.Rendering.csproj" />
     <ProjectReference Include="..\FaithburnEngine.World\FaithburnEngine.World.csproj" />
     <ProjectReference Include="..\FaithburnEngine.ModAPI\FaithburnEngine.ModAPI.csproj" />
