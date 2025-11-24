@@ -7,7 +7,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="AutoPipeline" Version="0.0.2" />
     <PackageReference Include="DefaultEcs" Version="0.17.2" />
+    <PackageReference Include="TexturePacker-MonoGameLoader" Version="2.0.0" />
   </ItemGroup>
 
   <ItemGroup>
