@@ -1,4 +1,13 @@
-﻿using FaithburnEngine.CoreGame;
+﻿using System;
 
-using var game = new Faithburn();
-game.Run();
+namespace FaithburnEngine.CoreGame;
+
+public static class Program
+{
+    [STAThread]
+    static void Main()
+    {
+        using var game = new Faithburn();
+        game.Run();
+    }
+}

@@ -9,6 +9,6 @@ namespace FaithburnEngine.Networking
         [Key(0)] public int PlayerId;
         [Key(1)] public int Tick;
         [Key(2)] public byte Buttons;
-        [Key(3] public Vector2 Aim;
+        [Key(3)] public Vector2 Aim;
     }
 }
