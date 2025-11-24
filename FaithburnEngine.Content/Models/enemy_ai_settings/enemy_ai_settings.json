@@ -1,0 +1,20 @@
+{
+  "casual": {
+    "chaseSpeedMultiplier": 0.8,
+    "aggressionRadius": 80,
+    "avoidanceStrength": 0.2,
+    "reactionDelay": 0.25
+  },
+  "normal": {
+    "chaseSpeedMultiplier": 1.0,
+    "aggressionRadius": 120,
+    "avoidanceStrength": 0.4,
+    "reactionDelay": 0.15
+  },
+  "expert": {
+    "chaseSpeedMultiplier": 1.25,
+    "aggressionRadius": 160,
+    "avoidanceStrength": 0.6,
+    "reactionDelay": 0.08
+  }
+}

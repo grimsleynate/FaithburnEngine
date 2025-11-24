@@ -1,0 +1,30 @@
+﻿[
+  {
+    "id": "wood",
+    "type": "material",
+    "stackMax": 9999,
+    "stats": {},
+    "spriteRef": "wood.png"
+  },
+  {
+    "id": "plank",
+    "type": "material",
+    "stackMax": 9999,
+    "stats": {},
+    "spriteRef": "plank.png"
+  },
+  {
+    "id": "stone_pick",
+    "type": "tool",
+    "stackMax": 1,
+    "stats": { "harvestPower":  2, "damage":  2 },
+    "spriteRef": "stone_pick.png"
+  },
+  {
+    "id": "sword",
+    "type": "weapon",
+    "stackMax": 1,
+    "stats": { "damage": 5, "cooldown":  0.6 },
+    "spriteRef": "sword.png"
+  }
+]

@@ -1,0 +1,31 @@
+[
+  {
+    "id": "wood_node",
+    "targetBlockId": "tree",
+    "toolRequired": "axe",
+    "minHarvestPower": 1,
+    "yields": [
+      {
+        "itemId": "wood",
+        "countMin": 1,
+        "countMax": 3
+      },
+      {
+        "itemId": "sap",
+        "countMin": 1,
+        "chance":  0.5
+      }
+    ],
+    "harvestTime": 1.5
+  },
+  {
+    "id": "dirt_node",
+    "targetBlockId": "dirt",
+    "toolRequired": "pick",
+    "minHarvestPower": 1,
+    "yield": {
+      "dirt": 1
+    },
+    "harvestTime": 0.8
+  }
+]

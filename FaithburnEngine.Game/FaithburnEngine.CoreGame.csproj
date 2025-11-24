@@ -14,9 +14,12 @@
     <ApplicationIcon>Icon.ico</ApplicationIcon>
   </PropertyGroup>
 	<ItemGroup>
-		<None Include="Content\**\*.*">
-			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-		</None>
+		<None Include="..\FaithburnEngine.Content\Models\**\*.json"
+			  Link="Content\Models\%(RecursiveDir)%(Filename)%(Extension)"
+			  CopyToOutputDirectory="PreserveNewest" />
+		<None Include="..\FaithburnEngine.Content\Assets\**\*"
+			  Link="Content\Assets\%(RecursiveDir)%(Filename)%(Extension)"
+			  CopyToOutputDirectory="PreserveNewest" />
 	</ItemGroup>
 	<ItemGroup>
     <None Remove="Icon.ico" />
