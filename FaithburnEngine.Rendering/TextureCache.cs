@@ -1,6 +1,6 @@
-﻿using System.Collections.Generic;
+﻿using Microsoft.Xna.Framework.Graphics;
+using System.Collections.Concurrent;
 using System.IO;
-using Microsoft.Xna.Framework.Graphics;
 
 namespace FaithburnEngine.Rendering
 {
@@ -10,21 +10,19 @@ namespace FaithburnEngine.Rendering
     /// </summary>
     public static class TextureCache
     {
-        private static readonly Dictionary<string, Texture2D> _cache = new();
+        private static readonly ConcurrentDictionary<string, Texture2D> _cache = new();
 
         public static Texture2D GetOrLoad(GraphicsDevice gd, string relativePath)
         {
-            if (_cache.TryGetValue(relativePath, out var tex))
-                return tex;
+            return _cache.GetOrAdd(relativePath, key =>
+            {
+                var fullPath = Path.Combine(AppContext.BaseDirectory, "Content", key);
+                if (!File.Exists(fullPath))
+                    throw new FileNotFoundException($"Texture not found: {fullPath}");
 
-            var fullPath = Path.Combine(System.AppContext.BaseDirectory, "Content", relativePath);
-            if (!File.Exists(fullPath))
-                throw new FileNotFoundException($"Texture not found: {fullPath}");
-
-            using var stream = File.OpenRead(fullPath);
-            tex = Texture2D.FromStream(gd, stream);
-            _cache[relativePath] = tex;
-            return tex;
+                using var stream = File.OpenRead(fullPath);
+                return Texture2D.FromStream(gd, stream);
+            });
         }
 
         public static void Clear()

@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System.Text.Json.Serialization;
+using FaithburnEngine.Content.Models.Enums;
 
 namespace FaithburnEngine.Content.Models
 {
@@ -12,7 +13,10 @@ namespace FaithburnEngine.Content.Models
     public sealed class ItemDef
     {
         public string Id { get; set; } = "";
-        public string Type { get; set; } = ""; // material, consumable, tool, weapon, block
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        public ItemType Type { get; set; } = ItemType.None;
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        public ToolType ToolKind { get; set; } = ToolType.None;
         public int StackMax { get; set; } = 9999;
         public ItemStats Stats { get; set; } = new();
         public string? SpriteRef { get; set; }

@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+﻿using System.Text.Json.Serialization;
 
 namespace FaithburnEngine.Content.Models
 {
@@ -14,10 +14,11 @@ namespace FaithburnEngine.Content.Models
     {
         public string Id { get; set; } = "";
         public string TargetBlockId { get; set; } = "";
-        public string ToolRequired { get; set; } = "any"; // "any", "pick", "axe"
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        public ToolType ToolRequired { get; set; } = ToolType.None; 
         public int MinHarvestPower { get; set; } = 0;
 
-        public Dictionary<string, int> Yields { get; set; } = new();
-        public float HarvestTime { get; set; } = 1.0f; // in seconds
+        public List<HarvestYield> Yields { get; set; } = new();
+        public float HarvestTime { get; set; } = 1.0f;
     }
 }

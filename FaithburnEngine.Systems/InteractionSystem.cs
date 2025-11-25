@@ -5,14 +5,18 @@ using FaithburnEngine.Core.Inventory;
 using FaithburnEngine.Content.Models;
 using FaithburnEngine.World;
 using FaithburnEngine.Core;
+using FaithburnEngine.Content.Models.Enums;
+using DefaultEcs.System;
 
 namespace FaithburnEngine.Systems
 {
-    public sealed class InteractionSystem
+    public sealed class InteractionSystem : ISystem<float>
     {
         private readonly Content.ContentLoader _content;
         private readonly InventorySystem _inventorySystem;
         private readonly WorldGrid _world; // your world grid API
+
+        public bool IsEnabled { get; set; } = true;
 
         public InteractionSystem(Content.ContentLoader content, InventorySystem invSys, WorldGrid world)
         {
@@ -27,63 +31,62 @@ namespace FaithburnEngine.Systems
             var worldPos = ScreenToWorld(mouse.Position, player.Camera);
             var tileCoord = _world.WorldToTileCoord(worldPos);
 
-            if (leftClick)
-            {
-                // Place block from hotbar if selected slot has a block item
-                var slot = player.Inventory.Slots[player.HotbarIndex];
-                if (!slot.IsEmpty)
-                {
-                    var itemDef = _content.Items.FirstOrDefault(i => i.Id == slot.ItemId);
-                    if (itemDef != null && itemDef.Type == "block")
-                    {
-                        var placed = _world.PlaceBlock(tileCoord, itemDef.Id);
-                        if (placed)
-                        {
-                            slot.Remove(1);
-                        }
-                    }
-                }
-            }
+            
+        }
 
-            if (rightClick)
-            {
-                var block = _world.GetBlock(tileCoord); // BlockDef
-                var rule = _content.HarvestRules.FirstOrDefault(r => r.TargetBlockId == block.Id);
-                if (rule != null)
-                {
-                    var equipped = player.Inventory.Slots[player.HotbarIndex];
-                    var toolOk = CheckToolRequirement(equipped, rule);
-                    if (toolOk)
-                    {
-                        _world.SetBlock(tileCoord, "air");
+        private void TryHarvest(Point tileCoord, ItemDef? toolDef, InventorySlot equippedSlot, PlayerContext player)
+        {
+            var block = _world.GetBlock(tileCoord);
+            var rule = _content.HarvestRules.FirstOrDefault(r => r.TargetBlockId == block.Id);
+            if (rule == null) return;
 
-                        foreach (var kvp in rule.Yields)
-                        {
-                            var itemId = kvp.Key;
-                            var count = kvp.Value;
-                            _inventorySystem.AddToInventory(player.Inventory, itemId, count);
-                        }
-                    }
+            // Check tool requirement
+            var toolOk = CheckToolRequirement(toolDef, rule);
+            if (!toolOk) return;
+
+            // For PoC: instant harvest. Later use harvestTime and progress bar.
+            _world.SetBlock(tileCoord, "air");
+
+            var rng = new Random(); // consider injecting RNG for determinism in tests
+            foreach (var y in rule.Yields)
+            {
+                if (rng.NextDouble() <= y.Chance)
+                {
+                    var count = y.MinCount == y.MaxCount ? y.MinCount : rng.Next(y.MinCount, y.MaxCount + 1);
+                    _inventorySystem.AddToInventory(player.Inventory, y.ItemId, count);
                 }
             }
         }
 
-        private bool CheckToolRequirement(InventorySlot slot, HarvestRule rule)
+        private bool CheckToolRequirement(ItemDef? toolDef, HarvestRule rule)
         {
-            if (rule.ToolRequired == "any") return true;
-            if (slot.IsEmpty) return false;
-            var itemDef = _content.Items.FirstOrDefault(i => i.Id == slot.ItemId);
-            if (itemDef == null) return false;
-            // simple mapping: tool types are encoded in item.Type or stats
-            if (rule.ToolRequired == "pick" && itemDef.Type == "tool" && itemDef.Stats.HarvestPower >= rule.MinHarvestPower) return true;
-            if (rule.ToolRequired == "axe" && itemDef.Type == "tool" && itemDef.Stats.HarvestPower >= rule.MinHarvestPower) return true;
+            if (toolDef == null) return false;
+            if (toolDef.Type != ItemType.Tool) return false;
+
+            // ToolKind must match or be a superset (e.g., Drill can act as Pickaxe if desired)
+            if (toolDef.ToolKind == rule.ToolRequired) return true;
+
+            // Optionally allow tools with higher harvest power to satisfy requirement
+            if (toolDef.Stats.HarvestPower >= rule.MinHarvestPower) return true;
+
             return false;
         }
+
 
         private Vector2 ScreenToWorld(Point screen, Camera2D camera)
         {
             // simple conversion; adapt to your camera implementation
             return screen.ToVector2() + camera.Position;
+        }
+
+        public void Update(float dt)
+        {
+
+        }
+
+        public void Dispose()
+        {
+            
         }
     }
 }

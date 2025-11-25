@@ -1,13 +1,13 @@
-using FaithburnEngine.Core.Inventory;
+using DefaultEcs.System;
 
 namespace FaithburnEngine.Systems
 {
-    public sealed class InventorySystem
+    public sealed class InventorySystem :AEntitySetSystem<float>
     {
         private readonly Content.ContentLoader _content;
 
-        public InventorySystem(Content.ContentLoader content)
-        {
+        public InventorySystem(Content.ContentLoader content, DefaultEcs.World world) : base(world.GetEntities().With<Components.Inventory>().AsSet()) 
+        { 
             _content = content;
         }
 
@@ -18,7 +18,7 @@ namespace FaithburnEngine.Systems
         }
 
         // Example helper to add to player's inventory
-        public int AddToInventory(Inventory inv, string itemId, int count)
+        public int AddToInventory(Core.Inventory.Inventory inv, string itemId, int count)
         {
             return inv.AddItem(itemId, count, GetStackMax);
         }

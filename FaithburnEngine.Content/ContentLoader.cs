@@ -1,6 +1,8 @@
 using FaithburnEngine.Content.Models;
+using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace FaithburnEngine.Content
 {
@@ -14,6 +16,14 @@ namespace FaithburnEngine.Content
         public IReadOnlyList<BlockDef> Blocks { get; private set; } = new List<BlockDef>();
         public IReadOnlyList<HarvestRule> HarvestRules { get; private set; } = new List<HarvestRule>();
         public Dictionary<string, EnemyAISettings> EnemyAI { get; private set; } = new();
+
+        public ImmutableDictionary<string, ItemDef> ItemsById { get; private set; }
+            = ImmutableDictionary<string, ItemDef>.Empty;
+        public ImmutableDictionary<string, BlockDef> BlocksById { get; private set; }
+            = ImmutableDictionary<string, BlockDef>.Empty;
+
+        public ItemDef? GetItem(string id) => ItemsById.TryGetValue(id, out var def) ? def : null;
+        public BlockDef? GetBlock(string id) => BlocksById.TryGetValue(id, out var def) ? def : null;
 
         public ContentLoader(string contentRoot)
         {
@@ -29,6 +39,9 @@ namespace FaithburnEngine.Content
             Blocks = LoadJsonList<BlockDef>("blocks/blocks.json");
             HarvestRules = LoadJsonList<HarvestRule>("harvest_rules/harvest_rules.json");
             EnemyAI = LoadJsonDict<Dictionary<string, EnemyAISettings>>("enemy_ai_settings/enemy_ai_settings.json");
+
+            ItemsById = Items.ToImmutableDictionary(i => i.Id);
+            BlocksById = Blocks.ToImmutableDictionary(b => b.Id);
 
             Debug.WriteLine($"ContentLoader finished: Items={Items.Count}, Blocks={Blocks.Count}, HarvestRules={HarvestRules.Count}, EnemyAI={EnemyAI?.Count ?? 0}");
         }
@@ -46,7 +59,15 @@ namespace FaithburnEngine.Content
 
             try
             {
+                var options = new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    Converters = { new JsonStringEnumConverter() }
+                };
+
                 var json = File.ReadAllText(path);
+                var rules = JsonSerializer.Deserialize<List<HarvestRule>>(json, options);
+
                 return JsonSerializer.Deserialize<List<T>>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<T>();
             }
             catch (JsonException ex)
