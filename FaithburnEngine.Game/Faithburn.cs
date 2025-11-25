@@ -27,6 +27,8 @@ namespace FaithburnEngine.CoreGame
         private InteractionSystem _interactionSystem;
         private HotbarRenderer _hotbarRenderer;
         private AssetLoader _assetLoader;
+        private UI.HotbarUI _hotbar;
+        private Core.Inventory.Inventory _coreInventory;
 
         // ECS pipeline fields
         private SequentialSystem<float> _systems;
@@ -96,8 +98,30 @@ namespace FaithburnEngine.CoreGame
             _spriteRenderer = new SpriteRenderer(_world, _spriteBatch);
 
             if (sprite.Texture == null) Debug.WriteLine("Sprite texture is null");
-            else Debug.WriteLine($"Texture size: {sprite.Texture.Width}x{sprite.Texture.Height}");
-            Debug.WriteLine($"Pos: {entity.Get<Position>().Value.X}, {entity.Get<Position>().Value.Y}");
+
+            var slotBg = Content.Load<Texture2D>("UI/slot_bg");
+            var uiFont = Content.Load<SpriteFont>("Fonts/UiFont");
+
+            _coreInventory = new Core.Inventory.Inventory(10);
+
+            Texture2D IconResolver(string itemId)
+            {
+                if (string.IsNullOrEmpty(itemId)) return null;
+                // Example: Content.Load is fine during LoadContent; cache results in a dictionary for runtime use.
+                return Content.Load<Texture2D>($"icons/{itemId}");
+            }
+
+            var adapter = new UI.InventoryAdapterFromCore(_coreInventory, IconResolver);
+            _hotbar = new UI.HotbarUI(adapter, slotBg, uiFont);
+
+            // Hook use action to your player action system:
+            _hotbar.OnUseRequested += idx =>
+            {
+                // Example: call a player action that uses the item in coreInventory.Slots[idx]
+                // PlayerActions.UseItemFromHotbar(coreInventory, idx);
+                Debug.WriteLine($"Hotbar use requested: slot {idx}");
+            };
+
         }
 
         protected override void Update(GameTime gameTime)
@@ -106,6 +130,7 @@ namespace FaithburnEngine.CoreGame
 
             var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
             _systems.Update(dt);
+            _hotbar?.Update(gameTime);
 
             base.Update(gameTime);
         }
@@ -115,7 +140,15 @@ namespace FaithburnEngine.CoreGame
             if (_spriteRenderer == null) throw new InvalidOperationException("_spriteRenderer is null");
 
             GraphicsDevice.Clear(Color.CornflowerBlue);
+
+            //draw world
             _spriteRenderer.Draw();
+
+            //draw UI in its own batch so it renders on top
+            _spriteBatch.Begin();
+            _hotbar?.Draw(_spriteBatch, GraphicsDevice);
+            _spriteBatch.End();
+
             base.Draw(gameTime);
         }
 

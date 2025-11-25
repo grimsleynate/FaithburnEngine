@@ -23,6 +23,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FaithburnEngine.Networking"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FaithburnEngine.Tools", "FaithburnEngine.Tools\FaithburnEngine.Tools.csproj", "{7DAAA12C-A590-4F50-B01B-6AF4A8ADD374}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FaithburnEngine.UI", "FaithburnEngine.UI\FaithburnEngine.UI.csproj", "{BC810771-DBE4-4C97-B7FA-41008EBF0521}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -153,6 +155,18 @@ Global
 		{7DAAA12C-A590-4F50-B01B-6AF4A8ADD374}.Release|x64.Build.0 = Release|Any CPU
 		{7DAAA12C-A590-4F50-B01B-6AF4A8ADD374}.Release|x86.ActiveCfg = Release|Any CPU
 		{7DAAA12C-A590-4F50-B01B-6AF4A8ADD374}.Release|x86.Build.0 = Release|Any CPU
+		{BC810771-DBE4-4C97-B7FA-41008EBF0521}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BC810771-DBE4-4C97-B7FA-41008EBF0521}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BC810771-DBE4-4C97-B7FA-41008EBF0521}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{BC810771-DBE4-4C97-B7FA-41008EBF0521}.Debug|x64.Build.0 = Debug|Any CPU
+		{BC810771-DBE4-4C97-B7FA-41008EBF0521}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{BC810771-DBE4-4C97-B7FA-41008EBF0521}.Debug|x86.Build.0 = Debug|Any CPU
+		{BC810771-DBE4-4C97-B7FA-41008EBF0521}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BC810771-DBE4-4C97-B7FA-41008EBF0521}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BC810771-DBE4-4C97-B7FA-41008EBF0521}.Release|x64.ActiveCfg = Release|Any CPU
+		{BC810771-DBE4-4C97-B7FA-41008EBF0521}.Release|x64.Build.0 = Release|Any CPU
+		{BC810771-DBE4-4C97-B7FA-41008EBF0521}.Release|x86.ActiveCfg = Release|Any CPU
+		{BC810771-DBE4-4C97-B7FA-41008EBF0521}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

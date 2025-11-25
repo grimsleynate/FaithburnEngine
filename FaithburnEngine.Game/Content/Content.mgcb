@@ -4,3 +4,24 @@
 /config:
 /profile:Reach
 /compress:false
+
+#begin UI\slot_bg.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyColor=255,0,255,255
+/processorParam:ColorKeyEnabled=false
+/processorParam:GenerateMipmaps=false
+/processorParam:PremultiplyAlpha=false
+/processorParam:ResizeToPowerOfTwo=false
+/processorParam:MakeSquare=false
+/processorParam:TextureFormat=color
+/build:UI\slot_bg.png
+
+#begin Fonts\UiFont.spritefont
+/importer:FontDescriptionImporter
+/processor:FontDescriptionProcessor
+/processorParam:Importer=FontDescriptionImporter
+/processorParam:Processor=FontDescriptionProcessor
+/processorParam:PremultiplyAlpha=True
+/processorParam:TextureFormat=Compressed
+/build:Fonts\UiFont.spritefont

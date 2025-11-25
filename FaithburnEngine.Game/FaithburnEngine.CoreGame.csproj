@@ -14,12 +14,10 @@
     <ApplicationIcon>Icon.ico</ApplicationIcon>
   </PropertyGroup>
 	<ItemGroup>
-		<None Include="..\FaithburnEngine.Content\Models\**\*.json"
-			  Link="Content\Models\%(RecursiveDir)%(Filename)%(Extension)"
-			  CopyToOutputDirectory="PreserveNewest" />
-		<None Include="..\FaithburnEngine.Content\Assets\**\*"
-			  Link="Content\Assets\%(RecursiveDir)%(Filename)%(Extension)"
-			  CopyToOutputDirectory="PreserveNewest" />
+		<None Include="..\FaithburnEngine.Content\Models\**\*.json" Link="Content\Models\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+		<None Include="..\FaithburnEngine.Content\Assets\**\*" Link="Content\Assets\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+		<None Include="..\FaithburnEngine.Content\Fonts\**\*" Link="Content\Assets\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+		<None Include="..\FaithburnEngine.Content\UI\**\*" Link="Content\Assets\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
 	</ItemGroup>
 	<ItemGroup>
     <None Remove="Icon.ico" />
@@ -47,6 +45,7 @@
     <ProjectReference Include="..\FaithburnEngine.Core\FaithburnEngine.Core.csproj" />
     <ProjectReference Include="..\FaithburnEngine.Networking\FaithburnEngine.Networking.csproj" />
     <ProjectReference Include="..\FaithburnEngine.Rendering\FaithburnEngine.Rendering.csproj" />
+    <ProjectReference Include="..\FaithburnEngine.UI\FaithburnEngine.UI.csproj" />
     <ProjectReference Include="..\FaithburnEngine.World\FaithburnEngine.World.csproj" />
     <ProjectReference Include="..\FaithburnEngine.ModAPI\FaithburnEngine.ModAPI.csproj" />
     <ProjectReference Include="..\FaithburnEngine.Components\FaithburnEngine.Components.csproj" />
