@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\FaithburnEngine.Components\FaithburnEngine.Components.csproj" />
+    <ProjectReference Include="..\FaithburnEngine.Rendering\FaithburnEngine.Rendering.csproj" />
     <ProjectReference Include="..\FaithburnEngine.World\FaithburnEngine.World.csproj" />
     <ProjectReference Include="..\FaithburnEngine.Content\FaithburnEngine.Content.csproj" />
     <ProjectReference Include="..\FaithburnEngine.Core\FaithburnEngine.Core.csproj" />

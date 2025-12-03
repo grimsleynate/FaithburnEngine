@@ -18,6 +18,7 @@
 		<None Include="..\FaithburnEngine.Content\Assets\**\*" Link="Content\Assets\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
 		<None Include="..\FaithburnEngine.Content\Fonts\**\*" Link="Content\Assets\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
 		<None Include="..\FaithburnEngine.Content\UI\**\*" Link="Content\Assets\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+		<None Include="..\FaithburnEngine.Content\UI\**\*" Link="Content\Assets\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
 	</ItemGroup>
 	<ItemGroup>
     <None Remove="Icon.ico" />

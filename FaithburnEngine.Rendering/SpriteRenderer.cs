@@ -1,4 +1,5 @@
 ﻿using FaithburnEngine.Components;
+using FaithburnEngine.Core;
 using FaithburnEngine.World;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -16,13 +17,15 @@ namespace FaithburnEngine.Rendering
         private readonly BlockAtlas _blockAtlas;
         private readonly WorldGrid _worldGrid;
         private readonly int _tileSize;
-        public SpriteRenderer(DefaultEcs.World world, SpriteBatch spriteBatch, BlockAtlas blockAtlas, WorldGrid worldGrid, int tileSize = 32)
+        private readonly Camera2D _camera;
+        public SpriteRenderer(DefaultEcs.World world, SpriteBatch spriteBatch, BlockAtlas blockAtlas, WorldGrid worldGrid, Camera2D camera, int tileSize = 32)
         {
             _world = world;
             _spriteBatch = spriteBatch;
             _blockAtlas = blockAtlas;
             _worldGrid = worldGrid;
             _tileSize = tileSize;
+            _camera = camera;
         }
 
         /// <summary>
@@ -31,7 +34,15 @@ namespace FaithburnEngine.Rendering
         /// </summary>
         public void Draw()
         {
-            _spriteBatch.Begin(samplerState: SamplerState.PointClamp, transformMatrix: Matrix.Identity);
+            var view = _camera?.GetViewMatrix() ?? Matrix.Identity;
+
+            _spriteBatch.Begin(
+                sortMode: SpriteSortMode.Deferred,
+                blendState: BlendState.AlphaBlend,
+                samplerState: SamplerState.PointClamp, // crisp pixels
+                transformMatrix: view
+            );
+
 
             // Draw world tiles (background layer)
             DrawWorldTiles();
@@ -42,45 +53,99 @@ namespace FaithburnEngine.Rendering
             _spriteBatch.End();
         }
 
-        /// <summary>
-        /// Draw all visible world tiles using smart-tiling variants.
-        /// TENET #3 (Efficient): Only draw tiles in viewport (future optimization).
-        /// </summary>
         private void DrawWorldTiles()
         {
-            // TODO: Cull tiles outside viewport for performance
-            // For now, draw all tiles in the world (PoC)
-            var allCoords = new List<Point>();
+            if (_spriteBatch == null || _camera == null || _blockAtlas == null || _worldGrid == null)
+                return;
 
-            // Gather all tile coordinates from world grid
-            // (This is a limitation of dict-backed storage; chunked array would be faster)
-            // For PoC, assume world is reasonably small
-            for (int x = -100; x < 100; x++)
+            var vp = _spriteBatch.GraphicsDevice.Viewport;
+            var screenTopLeft = new Vector3(0, 0, 0);
+            var screenBottomRight = new Vector3(vp.Width, vp.Height, 0);
+
+            var view = _camera.GetViewMatrix();
+
+            // Invert the view matrix correctly using ref/out
+            Matrix inv;
+            try
             {
-                for (int y = -100; y < 100; y++)
+                Matrix.Invert(ref view, out inv);
+
+                // Transform screen corners to world space
+                var topLeftWorld = Vector3.Transform(screenTopLeft, inv);
+                var bottomRightWorld = Vector3.Transform(screenBottomRight, inv);
+
+                // Convert to tile indices
+                int leftTile = (int)Math.Floor(Math.Min(topLeftWorld.X, bottomRightWorld.X) / _tileSize);
+                int rightTile = (int)Math.Ceiling(Math.Max(topLeftWorld.X, bottomRightWorld.X) / _tileSize);
+                int topTile = (int)Math.Floor(Math.Min(topLeftWorld.Y, bottomRightWorld.Y) / _tileSize);
+                int bottomTile = (int)Math.Ceiling(Math.Max(topLeftWorld.Y, bottomRightWorld.Y) / _tileSize);
+
+                // Clamp to safe bounds (replace with world bounds if available)
+                const int HARD_LIMIT = 100000;
+                leftTile = Math.Max(leftTile, -HARD_LIMIT);
+                topTile = Math.Max(topTile, -HARD_LIMIT);
+                rightTile = Math.Min(rightTile, HARD_LIMIT);
+                bottomTile = Math.Min(bottomTile, HARD_LIMIT);
+
+                for (int y = topTile; y <= bottomTile; y++)
                 {
-                    var coord = new Point(x, y);
-                    var block = _worldGrid.GetBlock(coord);
-                    if (block.Id != "air")
+                    for (int x = leftTile; x <= rightTile; x++)
                     {
+                        var coord = new Point(x, y);
+                        var block = _worldGrid.GetBlock(coord);
+                        if (block == null || block.Id == "air") continue;
+
                         var variant = _worldGrid.GetVariant(coord);
-                        // Fix ambiguous call by explicitly casting variant.VariantIndex to byte
                         var spriteData = _blockAtlas.GetSpriteForVariant(block.Id, variant.VariantIndex);
-                        if (spriteData.HasValue)
-                        {
-                            var (spritesheet, srcRect) = spriteData.Value;
-                            var destRect = new Rectangle(
-                                coord.X * _tileSize,
-                                coord.Y * _tileSize,
-                                _tileSize,
-                                _tileSize
-                            );
-                            _spriteBatch.Draw(spritesheet, destRect.Location.ToVector2(), srcRect, Color.White);
-                        }
+                        if (!spriteData.HasValue) continue;
+
+                        var (spritesheet, srcRect) = spriteData.Value;
+                        var destRect = new Rectangle(x * _tileSize, y * _tileSize, _tileSize, _tileSize);
+                        _spriteBatch.Draw(spritesheet, destRect, srcRect, Color.White);
+                    }
+                }
+            }
+            catch
+            {
+                // Fallback: approximate using camera.Position, Origin and Zoom if inversion fails
+                float zoom = Math.Max(0.0001f, _camera.Zoom);
+                var origin = _camera.Origin;
+                var leftWorld = (_camera.Position.X - origin.X);
+                var topWorld = (_camera.Position.Y - origin.Y);
+                var rightWorld = leftWorld + vp.Width / zoom;
+                var bottomWorld = topWorld + vp.Height / zoom;
+
+                int leftTile = (int)Math.Floor(leftWorld / _tileSize);
+                int rightTile = (int)Math.Ceiling(rightWorld / _tileSize);
+                int topTile = (int)Math.Floor(topWorld / _tileSize);
+                int bottomTile = (int)Math.Ceiling(bottomWorld / _tileSize);
+
+                const int HARD_LIMIT = 100000;
+                leftTile = Math.Max(leftTile, -HARD_LIMIT);
+                topTile = Math.Max(topTile, -HARD_LIMIT);
+                rightTile = Math.Min(rightTile, HARD_LIMIT);
+                bottomTile = Math.Min(bottomTile, HARD_LIMIT);
+
+                for (int y = topTile; y <= bottomTile; y++)
+                {
+                    for (int x = leftTile; x <= rightTile; x++)
+                    {
+                        var coord = new Point(x, y);
+                        var block = _worldGrid.GetBlock(coord);
+                        if (block == null || block.Id == "air") continue;
+
+                        var variant = _worldGrid.GetVariant(coord);
+                        var spriteData = _blockAtlas.GetSpriteForVariant(block.Id, variant.VariantIndex);
+                        if (!spriteData.HasValue) continue;
+
+                        var (spritesheet, srcRect) = spriteData.Value;
+                        var destRect = new Rectangle(x * _tileSize, y * _tileSize, _tileSize, _tileSize);
+                        _spriteBatch.Draw(spritesheet, destRect, srcRect, Color.White);
                     }
                 }
             }
         }
+
 
         /// <summary>
         /// Draw ECS entities (player, enemies, etc).

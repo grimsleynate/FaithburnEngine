@@ -7,6 +7,7 @@ using FaithburnEngine.World;
 using FaithburnEngine.Core;
 using FaithburnEngine.Content.Models.Enums;
 using DefaultEcs.System;
+using FaithburnEngine.Rendering;
 
 namespace FaithburnEngine.Systems
 {
@@ -15,20 +16,22 @@ namespace FaithburnEngine.Systems
         private readonly Content.ContentLoader _content;
         private readonly InventorySystem _inventorySystem;
         private readonly WorldGrid _world; // your world grid API
+        private readonly Camera2D _camera;
 
         public bool IsEnabled { get; set; } = true;
 
-        public InteractionSystem(Content.ContentLoader content, InventorySystem invSys, WorldGrid world)
+        public InteractionSystem(Content.ContentLoader content, InventorySystem invSys, WorldGrid world, Camera2D camera)
         {
             _content = content;
             _inventorySystem = invSys;
             _world = world;
+            _camera = camera;
         }
 
         // Call from Update with mouse state and player entity info
         public void HandleMouse(PlayerContext player, MouseState mouse, bool leftClick, bool rightClick)
         {
-            var worldPos = ScreenToWorld(mouse.Position, player.Camera);
+            var worldPos = ScreenToWorld(mouse.Position, _camera);
             var tileCoord = _world.WorldToTileCoord(worldPos);
 
             
@@ -75,8 +78,12 @@ namespace FaithburnEngine.Systems
 
         private Vector2 ScreenToWorld(Point screen, Camera2D camera)
         {
-            // simple conversion; adapt to your camera implementation
-            return screen.ToVector2() + camera.Position;
+            var s = screen.ToVector2();
+            var origin = camera.Origin;
+            var zoom = Math.Max(0.0001f, camera.Zoom);
+            // Inverse of: world -> translate(-position) -> translate(-origin) -> scale(zoom) -> translate(origin)
+            return (s - origin) / zoom + camera.Position;
+
         }
 
         public void Update(float dt)
