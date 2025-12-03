@@ -35,10 +35,10 @@ namespace FaithburnEngine.Content
             Debug.WriteLine($"ContentLoader.LoadAll root={_contentRoot}");
             TryLogDirectory(_contentRoot);
 
-            Items = LoadJsonList<ItemDef>("items/items.json");
-            Blocks = LoadJsonList<BlockDef>("blocks/blocks.json");
-            HarvestRules = LoadJsonList<HarvestRule>("harvest_rules/harvest_rules.json");
-            EnemyAI = LoadJsonDict<Dictionary<string, EnemyAISettings>>("enemy_ai_settings/enemy_ai_settings.json");
+            Items = LoadJsonList<ItemDef>("Items/Items.json");
+            Blocks = LoadJsonList<BlockDef>("Blocks/Blocks.json");
+            HarvestRules = LoadJsonList<HarvestRule>("Harvest_Rules/Harvest_Rules.json");
+            EnemyAI = LoadJsonDict<Dictionary<string, EnemyAISettings>>("Enemy_Ai_Settings/Enemy_Ai_Settings.json");
 
             ItemsById = Items.ToImmutableDictionary(i => i.Id);
             BlocksById = Blocks.ToImmutableDictionary(b => b.Id);

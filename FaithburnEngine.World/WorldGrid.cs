@@ -6,12 +6,14 @@ using FaithburnEngine.Content;
 namespace FaithburnEngine.World
 {
     /// <summary>
-    /// Simple tile grid stub. Backed by dictionary for now.
-    /// Replace with chunked array later.
+    /// Simple tile grid backed by dictionary.
+    /// Stores block IDs and their sprite variants for smart tiling.
+    /// Replace with chunked array later (Tenet #3 - Efficient).
     /// </summary>
     public sealed class WorldGrid
     {
-        private readonly Dictionary<Point, string> _tiles = new();
+        private readonly Dictionary<Point, string> _blockIds = new();
+        private readonly Dictionary<Point, TileVariant> _variants = new();
         private readonly ContentLoader _content;
         public int TileSize { get; } = 32; // pixels per tile
 
@@ -20,6 +22,9 @@ namespace FaithburnEngine.World
             _content = content;
         }
 
+        /// <summary>
+        /// Convert world position (pixels) to tile coordinate.
+        /// </summary>
         public Point WorldToTileCoord(Vector2 worldPos)
         {
             return new Point(
@@ -27,28 +32,96 @@ namespace FaithburnEngine.World
                 (int)(worldPos.Y / TileSize));
         }
 
+        /// <summary>
+        /// Get block definition at tile coordinate.
+        /// Returns air if no tile exists.
+        /// </summary>
         public BlockDef GetBlock(Point coord)
         {
-            var id = _tiles.TryGetValue(coord, out var blockId) ? blockId : "air";
-            var def = _content.Blocks.FirstOrDefault(b => b.Id == id);
+            var id = _blockIds.TryGetValue(coord, out var blockId) ? blockId : "air";
+            var def = _content.GetBlock(id);
             return def ?? new BlockDef { Id = "air", Solid = false };
         }
 
-
-        public void SetBlock(Point coord, string blockId)
+        /// <summary>
+        /// Get the variant (sprite selection) for a tile.
+        /// Used by renderer to pick correct sprite from atlas.
+        /// </summary>
+        public TileVariant GetVariant(Point coord)
         {
-            _tiles[coord] = blockId;
+            return _variants.TryGetValue(coord, out var variant) ? variant : default;
         }
 
+        /// <summary>
+        /// Set block at coordinate and recalculate its variant + neighbors.
+        /// </summary>
+        public void SetBlock(Point coord, string blockId)
+        {
+            _blockIds[coord] = blockId;
+            RecalculateVariant(coord);
+
+            // Neighbor changes affect their variants too
+            RecalculateVariant(coord + new Point(0, -1)); // top
+            RecalculateVariant(coord + new Point(1, 0));  // right
+            RecalculateVariant(coord + new Point(0, 1));  // bottom
+            RecalculateVariant(coord + new Point(-1, 0)); // left
+        }
+
+        /// <summary>
+        /// Try to place a block. Returns false if tile already occupied.
+        /// </summary>
         public bool PlaceBlock(Point coord, string blockId)
         {
             var current = GetBlock(coord);
             if (current.Id == "air")
             {
-                _tiles[coord] = blockId;
+                SetBlock(coord, blockId);
                 return true;
             }
             return false;
+        }
+
+        /// <summary>
+        /// Recalculate variant for a single tile based on neighbors.
+        /// Called when tile or neighbors change.
+        /// </summary>
+        private void RecalculateVariant(Point coord)
+        {
+            var blockId = _blockIds.TryGetValue(coord, out var id) ? id : "air";
+            var blockDef = _content.GetBlock(blockId);
+
+            if (blockDef?.Id == "air")
+            {
+                // Air tiles don't need variants
+                _variants.Remove(coord);
+                return;
+            }
+
+            if (blockDef == null) return;
+
+            // Check if neighbors are solid
+            bool isSolid(Point p) => _content.GetBlock(_blockIds.TryGetValue(p, out var bid) ? bid : "air")?.Solid ?? false;
+
+            var topSolid = isSolid(coord + new Point(0, -1));
+            var rightSolid = isSolid(coord + new Point(1, 0));
+            var bottomSolid = isSolid(coord + new Point(0, 1));
+            var leftSolid = isSolid(coord + new Point(-1, 0));
+
+            var variantIdx = TileVariant.CalculateVariant(topSolid, rightSolid, bottomSolid, leftSolid);
+            _variants[coord] = new TileVariant(0, variantIdx); // BlockId=0 for now, could store actual ID
+        }
+
+        /// <summary>
+        /// Recalculate all tile variants. Call after bulk generation.
+        /// TENET #3 (Efficient): Only call once during init, not per frame.
+        /// </summary>
+        public void RecalculateAllVariants()
+        {
+            var coordsCopy = new List<Point>(_blockIds.Keys);
+            foreach (var coord in coordsCopy)
+            {
+                RecalculateVariant(coord);
+            }
         }
     }
 }

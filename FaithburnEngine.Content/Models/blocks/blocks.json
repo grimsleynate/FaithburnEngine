@@ -1,23 +1,9 @@
 [
   {
-    "id": "dirt",
+    "id": "grass_dirt",
     "solid": true,
     "hardness": 1,
     "dropItemId": "dirt",
-    "spriteRef": "dirt.png"
-  },
-  {
-    "id": "wood_block",
-    "solid": true,
-    "hardness": 1,
-    "dropItemId": "wood",
-    "spriteRef": "wood_block.png"
-  },
-  {
-    "id": "air",
-    "solid": false,
-    "hardness": 0,
-    "dropItemId": null,
-    "spriteRef": null
+    "spriteRef": "tiles/grass_dirt_variants"
   }
 ]

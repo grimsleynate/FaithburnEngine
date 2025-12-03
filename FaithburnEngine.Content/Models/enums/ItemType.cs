@@ -10,6 +10,7 @@
         Weapon,
         Equipment,
         Accessory,
-        Workbench
+        Workbench,
+        Decoration
     }
 }

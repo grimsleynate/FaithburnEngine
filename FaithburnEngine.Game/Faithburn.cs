@@ -1,6 +1,5 @@
 using DefaultEcs.System;
 using DefaultEcs.Threading;
-using FaithburnEngine.Components;
 using FaithburnEngine.Content;
 using FaithburnEngine.Core;
 using FaithburnEngine.Rendering;
@@ -9,7 +8,6 @@ using FaithburnEngine.World;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
-using System.Diagnostics;
 using System.IO;
 
 namespace FaithburnEngine.CoreGame
@@ -35,10 +33,7 @@ namespace FaithburnEngine.CoreGame
         private SpriteRenderer _spriteRenderer;
         private InventorySystem _inventorySystem;
         private InteractionSystem _interactionSystem;
-        private HotbarRenderer _hotbarRenderer;
         private AssetLoader _assetLoader;
-        private UI.HotbarUI _hotbar;
-        private Core.Inventory.Inventory _coreInventory;
 
         // ECS pipeline fields
         private SequentialSystem<float> _systems;
@@ -59,6 +54,18 @@ namespace FaithburnEngine.CoreGame
 
         protected override void Initialize()
         {
+            // Get display resolution
+            var displayMode = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode;
+
+            // Set backbuffer to match screen resolution
+            _graphics.PreferredBackBufferWidth = displayMode.Width;
+            _graphics.PreferredBackBufferHeight = displayMode.Height;
+            _graphics.IsFullScreen = false; // keep border
+            _graphics.ApplyChanges();
+
+            // Position window at top-left
+            Window.Position = new Point(0, 0);
+
             _world = new DefaultEcs.World();
 
             // WHY DefaultParallelRunner (Tenet #3 - Multi-threaded Efficiency):
@@ -90,89 +97,39 @@ namespace FaithburnEngine.CoreGame
         protected override void LoadContent()
         {
             _player = new PlayerContext(12);
-            
-            // WHY separate ContentLoader paths (Tenet #1 - Moddable):
-            // "Models" = game schema (ItemDef, BlockDef, recipes)
-            // "Assets" = art assets (PNGs, fonts)
-            // This separation allows:
-            // - Modders add items via JSON without touching code
-            // - Asset hot-reload without restarting
-            // - Easy version control (data in git, binary assets in LFS)
+
             _contentLoader = new ContentLoader(Path.Combine(AppContext.BaseDirectory, "Content", "Models"));
             _contentLoader.LoadAll();
 
-            // WHY ContentLoader is a separate system (Tenet #3 - Efficient):
-            // Content loads once on the main thread ? all data becomes immutable.
-            // Rendering thread can read ItemDefs/BlockDefs concurrently without locks.
-            // This is essential for scaling to thousands of assets (like Terraria).
+            _assetLoader = new AssetLoader(Path.Combine(AppContext.BaseDirectory, "Content", "Asssets"));
+
             _worldGrid = new WorldGrid(_contentLoader);
             _spriteBatch = new SpriteBatch(GraphicsDevice);
+
+            // Initialize block atlas and load sprite sheets
+            var blockAtlas = new BlockAtlas(32);
+            // TODO: Load "grass_dirt" spritesheet from Content/Assets/tiles/grass_dirt_variants.png
+            // For now, assume it's loaded:
+            // var grassDirtSheet = Content.Load<Texture2D>("tiles/grass_dirt_variants");
+            // blockAtlas.RegisterAtlas("grass_dirt", grassDirtSheet);
+
+            // Generate world with flat terrain
+            var generator = new WorldGenerator(
+                widthInTiles: 200,
+                heightInTiles: 100,
+                surfaceLevel: 50
+            );
+            generator.FillWorld(_worldGrid);
+
             _inventorySystem = new InventorySystem(_contentLoader, _world);
             _interactionSystem = new InteractionSystem(_contentLoader, _inventorySystem, _worldGrid);
-            _hotbarRenderer = new HotbarRenderer(_spriteBatch, _contentLoader, GraphicsDevice);
-            _assetLoader = new AssetLoader(Path.Combine(AppContext.BaseDirectory, "Content", "Assets"));
+            _spriteRenderer = new SpriteRenderer(_world, _spriteBatch, blockAtlas, _worldGrid);
 
-            if (_world == null) throw new InvalidOperationException("_world is null");
-
-            // TEST ENTITY (Tenet #4 - ECS First):
-            // A player is an entity with components:
-            // - Position { x, y } (where are they?)
-            // - Velocity { dx, dy } (how are they moving?)
-            // - Sprite { texture, color } (what do they look like?)
-            // Need a health bar? Add HealthComponent. A mana system? ManaComponent.
-            // No need to modify this file—just add components. This is ECS scalability.
-            var entity = _world.CreateEntity();
-            var center = new Vector2(GraphicsDevice.Viewport.Width / 2f, GraphicsDevice.Viewport.Height / 2f);
-            entity.Set(new Position { Value = center });
-            entity.Set(new Velocity { Value = Vector2.Zero });
-
-            _assetLoader.LoadTexture(GraphicsDevice, "Liliana.png");
-            var tex = _assetLoader.GetTexture("Liliana.png");
-
-            var sprite = new Sprite
-            {
-                Texture = tex,
-                Origin = tex != null ? new Vector2(tex.Width / 2f, tex.Height / 2f) : Vector2.Zero,
-                Tint = Color.White,
-                Scale = 1f
-            };
-            entity.Set(sprite);
-
-            _spriteRenderer = new SpriteRenderer(_world, _spriteBatch);
-
-            if (sprite.Texture == null) Debug.WriteLine("Sprite texture is null");
-
-            var slotBg = Content.Load<Texture2D>("UI/slot_bg");
-            var uiFont = Content.Load<SpriteFont>("Fonts/UiFont");
-
-            _coreInventory = new Core.Inventory.Inventory(10);
-
-            // WHY IconResolver is a lambda (Tenet #1 - Moddable):
-            // Hotbar doesn't care WHERE icons come from. This lambda is the injection point.
-            // Change it to: iconResolver = id => _textureCache.GetOrLoad($"mod_icons/{id}")
-            // And suddenly all mods get custom icons. No hotbar.cs changes needed.
-            Texture2D IconResolver(string itemId)
-            {
-                if (string.IsNullOrEmpty(itemId)) return null;
-                return Content.Load<Texture2D>($"icons/{itemId}");
-            }
-
-            var adapter = new UI.InventoryAdapterFromCore(_coreInventory, IconResolver);
-            _hotbar = new UI.HotbarUI(adapter, slotBg, uiFont);
-
-            // WHY OnUseRequested event (Tenet #1 - Moddable):
-            // Hotbar raises an event, doesn't decide what "use" means.
-            // Game decides: cast spell? swing sword? throw potion?
-            // Modders subscribe here without modifying HotbarUI code.
-            _hotbar.OnUseRequested += idx =>
-            {
-                Debug.WriteLine($"Hotbar use requested: slot {idx}");
-            };
+            // ... rest of LoadContent
         }
 
         protected override void Update(GameTime gameTime)
         {
-            _assetLoader.Publish(GraphicsDevice);
 
             var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
             
@@ -180,7 +137,6 @@ namespace FaithburnEngine.CoreGame
             // New feature? Create a system, register it in Initialize().
             // No need to modify Update(). This is how moddable game engines work.
             _systems.Update(dt);
-            _hotbar?.Update(gameTime);
 
             base.Update(gameTime);
         }
@@ -197,15 +153,6 @@ namespace FaithburnEngine.CoreGame
             // 3. UI (top)
             // This order creates depth perception and ensures UI is readable.
             _spriteRenderer.Draw();
-
-            // WHY separate SpriteBatch.Begin/End for UI (Tenet #3 - Efficient):
-            // Each Begin/End changes GPU state (blending, sampler, transform matrix).
-            // World rendering: Point sampling (crisp pixels), world transform (camera applied)
-            // UI rendering: Linear sampling (smooth text), screen transform (no camera)
-            // Separating them is cleaner and allows future optimization (render targets, pipelines).
-            _spriteBatch.Begin();
-            _hotbar?.Draw(_spriteBatch, GraphicsDevice);
-            _spriteBatch.End();
 
             base.Draw(gameTime);
         }

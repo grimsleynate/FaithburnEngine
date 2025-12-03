@@ -2,7 +2,7 @@
   {
     "id": "wood_node",
     "targetBlockId": "tree",
-    "toolRequired": "axe",
+    "toolRequired": "Axe",
     "minHarvestPower": 1,
     "yields": [
       {
@@ -21,7 +21,7 @@
   {
     "id": "dirt_node",
     "targetBlockId": "dirt",
-    "toolRequired": "pick",
+    "toolRequired": "Pickaxe",
     "minHarvestPower": 1,
     "yield": {
       "dirt": 1
