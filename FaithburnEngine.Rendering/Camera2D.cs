@@ -13,7 +13,7 @@ namespace FaithburnEngine.Rendering
         public float Zoom
         {
             get => _zoom;
-            set => _zoom = MathHelper.Clamp(value, 0.1f, 10f);
+            set => _zoom = MathHelper.Clamp(value, 0.75f, 3.0f);
         }
 
         // Optional rotation (radians)

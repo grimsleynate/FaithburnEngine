@@ -315,9 +315,9 @@ namespace FaithburnEngine.CoreGame
                 }
             }
 
-             // optional: zoom with + / - keys
-             if (k.IsKeyDown(Keys.OemPlus) || k.IsKeyDown(Keys.Add)) _camera.Zoom += 0.5f * (float)gameTime.ElapsedGameTime.TotalSeconds;
-             if (k.IsKeyDown(Keys.OemMinus) || k.IsKeyDown(Keys.Subtract)) _camera.Zoom -= 0.5f * (float)gameTime.ElapsedGameTime.TotalSeconds;
+             // optional: zoom with + / - keys (speed increased ~2x)
+             if (k.IsKeyDown(Keys.OemPlus) || k.IsKeyDown(Keys.Add)) _camera.Zoom += 1.0f * (float)gameTime.ElapsedGameTime.TotalSeconds;
+             if (k.IsKeyDown(Keys.OemMinus) || k.IsKeyDown(Keys.Subtract)) _camera.Zoom -= 1.0f * (float)gameTime.ElapsedGameTime.TotalSeconds;
 
              float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
 
