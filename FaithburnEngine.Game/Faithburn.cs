@@ -16,13 +16,7 @@ namespace FaithburnEngine.CoreGame
 {
     /// <summary>
     /// Main game orchestrator. Follows Entity Component System (ECS) architecture.
-    /// 
-    /// CORE TENETS:
-    /// - Tenet #4 (ECS First): Game logic split into Systems (gameplay) and Components (data)
-    /// - Tenet #3 (Efficient): DefaultParallelRunner uses all CPU cores for independent systems
-    /// - Tenet #5 (Multiplayer): ECS makes netcode simple—serialize entities, broadcast state
-    /// - Tenet #1 (Moddable): Systems are injectable; modders create custom gameplay without touching this file
-    /// - Tenet #2 (Terraria-like): 32x32 tiles, side-scrolling, crafting/exploration focus
+
     /// </summary>
     public class Faithburn : Game
     {
@@ -51,10 +45,6 @@ namespace FaithburnEngine.CoreGame
             _graphics = new GraphicsDeviceManager(this);
             Content.RootDirectory = "Content";
             
-            // WHY IsFixedTimeStep = true (Tenet #3, #5):
-            // Deterministic updates are CRITICAL for multiplayer. All clients must compute
-            // identical entity positions given identical input. Fixed timestep locks all clients
-            // to 60 FPS, enabling frame-synchronized network code.
             IsFixedTimeStep = true;
             TargetElapsedTime = TimeSpan.FromSeconds(1.0 / 60.0); // 60 FPS
         }
@@ -75,29 +65,23 @@ namespace FaithburnEngine.CoreGame
 
             _world = new DefaultEcs.World();
 
-            // WHY DefaultParallelRunner (Tenet #3 - Multi-threaded Efficiency):
-            // InputSystem and MovementSystem are "pure" (no shared mutable state).
-            // They can run in parallel on different cores simultaneously.
-            // Sequential systems (Interaction, Inventory) run one-at-a-time to prevent data races.
-            // Result: 2x speedup on dual-core, scales linearly with cores (100 entities = same cost).
             _runner = new DefaultParallelRunner(Environment.ProcessorCount);
 
             _camera = new Camera2D();
             _camera.UpdateOrigin(GraphicsDevice.Viewport);
             _camera.Zoom = desiredZoom;
 
-            // SYSTEM PIPELINE (Tenet #4 - ECS First):
             // Order matters for game feel:
-            // 1. Input + Movement (parallel) ? Player responds immediately
-            // 2. Interaction (sequential) ? Player can harvest blocks
-            // 3. Inventory (sequential) ? UI shows changes
+            // 1. Input (read player input, buffer jump intent)
+            // 2. Movement (apply velocity, gravity, resolve collisions, apply buffered jump)
+            // 3. Interaction (sequential) ? Player can harvest blocks
+            // 4. Inventory (sequential) ? UI shows changes
             // This creates the feel of a responsive, snappy game (like Terraria).
             // Modders extend this by creating new systems and injecting them here.
             _systems = new SequentialSystem<float>(
-                new ParallelSystem<float>(_runner,
-                    new InputSystem(_world, speed: 180f),
-                    new MovementSystem(_world)
-                ),
+                // Run Input and Movement sequentially to avoid races on grounded state / jump intent
+                new InputSystem(_world, worldGrid: null, speed: 180f),
+                new MovementSystem(_world, worldGrid: null),
                 new InteractionSystem(_contentLoader, _inventorySystem, _worldGrid, _camera),
                 new InventorySystem(_contentLoader, _world)
             );
@@ -119,7 +103,6 @@ namespace FaithburnEngine.CoreGame
 
             // Initialize block atlas and load sprite sheets
             var blockAtlas = new BlockAtlas(32, 4);
-            // TODO: Load "grass_dirt" spritesheet from Content/Assets/tiles/grass_dirt_variants.png
             // For now, assume it's loaded:
             var grassDirtSheet = Content.Load<Texture2D>("Assets/tiles/grass_dirt_variants");
             blockAtlas.RegisterAtlas("grass_dirt", grassDirtSheet, 16);
@@ -232,18 +215,25 @@ namespace FaithburnEngine.CoreGame
             };
             _playerEntity.Set(sprite);
 
+            // Add a collider so AABB collision is used. Anchor at feet (bottom-center). Size chosen to fit typical character art.
+            var playerCollider = new FaithburnEngine.Components.Collider
+            {
+                Size = new Microsoft.Xna.Framework.Vector2(32f, 64f),
+                Offset = Microsoft.Xna.Framework.Vector2.Zero
+            };
+            _playerEntity.Set(playerCollider);
+
             // Center camera on player initially and use very small deadzone so player remains centered
             ref var ppos = ref _playerEntity.Get<FaithburnEngine.Components.Position>();
             _camera.Position = ppos.Value;
             _camera.DeadZoneSize = new Vector2(2f, 2f); // tiny deadzone to avoid micro-jitter but keep player centered
 
             _systems = new SequentialSystem<float>(
-                new ParallelSystem<float>(_runner,
-                    new InputSystem(_world, speed: 360f),
-                    new MovementSystem(_world)
-            ),
-            new InteractionSystem(_contentLoader, _inventorySystem, _worldGrid, _camera),
-            new InventorySystem(_contentLoader, _world));   
+                // Ensure Input runs before Movement so buffered jumps are processed deterministically
+                new InputSystem(_world, _worldGrid, speed: 360f),
+                new MovementSystem(_world, _worldGrid),
+                new InteractionSystem(_contentLoader, _inventorySystem, _worldGrid, _camera),
+                new InventorySystem(_contentLoader, _world));   
         }
 
         protected override void Update(GameTime gameTime)

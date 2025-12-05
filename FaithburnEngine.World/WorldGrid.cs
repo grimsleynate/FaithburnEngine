@@ -44,6 +44,21 @@ namespace FaithburnEngine.World
         }
 
         /// <summary>
+        /// Return true if the tile at coord is considered solid. This treats tiles with an id
+        /// present in the grid as solid even if their BlockDef could not be loaded, to avoid
+        /// physics falling through when content lookup fails.
+        /// </summary>
+        public bool IsSolidTile(Point coord)
+        {
+            if (!_blockIds.TryGetValue(coord, out var id)) return false;
+            if (string.IsNullOrEmpty(id) || id == "air") return false;
+            var def = _content.GetBlock(id);
+            if (def != null) return def.Solid;
+            // If we have an id but no BlockDef, assume it's solid (safer fallback)
+            return true;
+        }
+
+        /// <summary>
         /// Get the variant (sprite selection) for a tile.
         /// Used by renderer to pick correct sprite from atlas.
         /// </summary>
@@ -163,6 +178,17 @@ namespace FaithburnEngine.World
                 if (!max.HasValue || p.X > max.Value) max = p.X;
             }
             return max ?? 0;
+        }
+
+        /// <summary>
+        /// Return true if a world-space feet position should be considered grounded.
+        /// Uses a small epsilon downward to account for floating point and integration.
+        /// </summary>
+        public bool IsGrounded(Vector2 footWorldPosition, float epsilon = 2f)
+        {
+            var checkPos = new Vector2(footWorldPosition.X, footWorldPosition.Y + epsilon);
+            var tile = WorldToTileCoord(checkPos);
+            return IsSolidTile(tile);
         }
     }
 }
