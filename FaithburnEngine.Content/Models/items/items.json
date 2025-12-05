@@ -27,5 +27,13 @@
     "stackMax": 1,
     "stats": { "damage": 5, "cooldown":  0.6 },
     "spriteRef": "sword.png"
+  },
+  {
+    "id": "proto_pickaxe",
+    "type": "Tool,Weapon",
+    "toolKind": "Pickaxe",
+    "stackMax": 1,
+    "stats": { "damage": 3.0, "harvestPower": 1.0, "cooldown": 0.2 },
+    "spriteRef": "Assets/items/proto_pickaxe.png"
   }
 ]

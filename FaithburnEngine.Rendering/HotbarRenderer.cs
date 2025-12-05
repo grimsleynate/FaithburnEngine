@@ -80,8 +80,27 @@ namespace FaithburnEngine.Rendering
                         var tex = TextureCache.GetOrLoad(_sb.GraphicsDevice, itemDef.SpriteRef);
                         if (tex != null)
                         {
+                            // Uniform aspect-fit inside the slot with some padding
                             int iconPad = Math.Max(4, slotSize / 12);
-                            var dest = new Rectangle(x + iconPad, y + iconPad, slotSize - iconPad * 2, slotSize - iconPad * 2);
+
+                            // Special-case: make proto_pickaxe a bit smaller (84x84) so it has a buffer
+                            int protoMax = 84;
+                            int maxW = slotSize - iconPad * 2;
+                            int maxH = slotSize - iconPad * 2;
+                            if (itemDef.Id == "proto_pickaxe")
+                            {
+                                maxW = Math.Min(maxW, protoMax);
+                                maxH = Math.Min(maxH, protoMax);
+                            }
+
+                            float scale = Math.Min((float)maxW / tex.Width, (float)maxH / tex.Height);
+                            int drawW = Math.Max(1, (int)Math.Round(tex.Width * scale));
+                            int drawH = Math.Max(1, (int)Math.Round(tex.Height * scale));
+
+                            int drawX = x + (slotSize - drawW) / 2;
+                            int drawY = y + (slotSize - drawH) / 2;
+
+                            var dest = new Rectangle(drawX, drawY, drawW, drawH);
                             _sb.Draw(tex, dest, Color.White);
                         }
                         else

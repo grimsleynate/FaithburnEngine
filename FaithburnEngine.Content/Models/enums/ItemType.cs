@@ -1,17 +1,18 @@
 ﻿namespace FaithburnEngine.Content.Models.Enums
 {
-    public enum ItemType
+    [Flags]
+    public enum ItemType : int
     {
-        None,                      //Not an item. Used very rarely.
-        Block,                     //A breakable tile
-        Potion,                    //A consumable. For the sake of sorting, food is also a potion.
-        Misc,                      //Doesn't have a label. 
-        Tool,                      //Used for resource gathering in some way
-        Weapon,                    //Can cause damage to enemies
-        Equipment,                 //Worn by the player to provide stats/bonuses
-        Accessory,                 //Worn by the player to provide minor stats/bonuses and extra abilities
-        Workbench,                 //Used to unlock crafting recipes
-        Decoration,                //Purely aesthetic item
-        Food,                      //A consumable that restores hunger/saturation and gives stat boosts
+        None = 0,
+        Block = 1 << 0,   // 1
+        Potion = 1 << 1,   // 2
+        Misc = 1 << 2,   // 4
+        Tool = 1 << 3,   // 8
+        Weapon = 1 << 4,   // 16
+        Equipment = 1 << 5,   // 32
+        Accessory = 1 << 6,   // 64
+        Workbench = 1 << 7,   // 128
+        Decoration = 1 << 8,   // 256
+        Food = 1 << 9    // 512
     }
 }

@@ -1,7 +1,11 @@
-﻿public enum ToolType
+﻿namespace FaithburnEngine.Content.Models.Enums
 {
-    None,                        //Not a tool, used very rarely.
-    Pickaxe,                     //Used for mining stone and ores
-    Axe,                         //Used for chopping wood
-    Sickle,                      //Used for harvesting crops and plants
+    [Flags]
+    public enum ToolType : int
+    {
+        None = 0,
+        Pickaxe = 1 << 0,   // 1
+        Axe = 1 << 1,   // 2
+        Sickle = 1 << 2    // 4
+    }
 }

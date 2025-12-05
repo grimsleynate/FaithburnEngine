@@ -1,4 +1,5 @@
 ﻿using System.Text.Json.Serialization;
+using FaithburnEngine.Content.Models.Enums;
 
 namespace FaithburnEngine.Content.Models
 {

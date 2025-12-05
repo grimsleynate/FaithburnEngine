@@ -164,6 +164,62 @@ namespace FaithburnEngine.Rendering
                 var scale = sprite.Scale <= 0f ? 1f : sprite.Scale;
                 var effects = sprite.Effects;
                 _spriteBatch.Draw(sprite.Texture, pos.Value, null, tint, 0f, origin, scale, effects, 0f);
+
+                // If entity is holding an item, draw it on top of the entity
+                if (e.Has<HeldItem>())
+                {
+                    ref var hi = ref e.Get<HeldItem>();
+                    if (hi.Texture != null)
+                    {
+                        var tex = hi.Texture;
+
+                        // Determine facing from entity sprite
+                        float facing = 1f;
+                        if (e.Has<Sprite>())
+                        {
+                            ref var sp = ref e.Get<Sprite>();
+                            // Sprite.Effects: FlipHorizontally means artwork flipped -> player faces RIGHT (art faces left by default)
+                            facing = (sp.Effects.HasFlag(SpriteEffects.FlipHorizontally)) ? 1f : -1f;
+                        }
+
+                        // Pivot in texture pixels; after scaling, pivot world offset = Pivot * Scale
+                        var pivot = hi.Pivot;
+                        var scaledPivot = pivot * hi.Scale;
+
+                        // Compute world position where the pivot should be placed: entity position + Offset
+                        var pivotWorldPos = pos.Value + hi.Offset;
+
+                        // Use entity sprite's effects for held item flip so it matches orientation
+                        // Certain item art may have opposite native facing (e.g. proto_pickaxe). For those
+                        // we'll invert the horizontal flip so the visual faces the same direction as the player.
+                        SpriteEffects heldEffects = SpriteEffects.None;
+                        if (e.Has<Sprite>())
+                        {
+                            var baseEffects = e.Get<Sprite>().Effects;
+                            // Default: follow entity sprite effects
+                            heldEffects = baseEffects;
+                            // If this item is known to have opposite native facing, toggle the horizontal flip
+                            if (!string.IsNullOrEmpty(hi.ItemId) && hi.ItemId == "proto_pickaxe")
+                            {
+                                heldEffects = baseEffects ^ SpriteEffects.FlipHorizontally;
+                            }
+                        }
+
+                        float rot = hi.Rotation;
+                        // Flip rotation sign when flipped horizontally so swing direction matches facing
+                        if (heldEffects.HasFlag(SpriteEffects.FlipHorizontally)) rot = -rot;
+
+                        // If we're flipping horizontally, adjust pivot.x so it references the mirrored pixel
+                        var originForDraw = pivot;
+                        if (heldEffects.HasFlag(SpriteEffects.FlipHorizontally))
+                        {
+                            originForDraw = new Vector2(tex.Width - pivot.X, pivot.Y);
+                        }
+
+                        // Draw texture so that pivot (originForDraw) maps to pivotWorldPos
+                        _spriteBatch.Draw(tex, pivotWorldPos, null, Color.White, rot, originForDraw, hi.Scale, heldEffects, 0f);
+                    }
+                }
             }
         }
 
@@ -180,59 +236,59 @@ namespace FaithburnEngine.Rendering
     public sealed class BlockAtlas
     {
         private readonly Dictionary<string, BlockAtlasEntry> _atlases = new();
-        private readonly int _blockTileSize;
-        private readonly int _tilePadding;
+                private readonly int _blockTileSize;
+                private readonly int _tilePadding;
 
-        public struct BlockAtlasEntry
-        {
-            public Texture2D Spritesheet;
-            public int TilesWide;
-            public int TileSize;
-            public int Padding;
-            public Rectangle[] SourceRects;
-        }
+                public struct BlockAtlasEntry
+                {
+                    public Texture2D Spritesheet;
+                    public int TilesWide;
+                    public int TileSize;
+                    public int Padding;
+                    public Rectangle[] SourceRects;
+                }
 
-        public BlockAtlas(int tileSize, int tilePadding = 0)
-        {
-            _blockTileSize = tileSize;
-            _tilePadding = tilePadding;
-        }
+                public BlockAtlas(int tileSize, int tilePadding = 0)
+                {
+                    _blockTileSize = tileSize;
+                    _tilePadding = tilePadding;
+                }
 
-        public void RegisterAtlas(string blockId, Texture2D spritesheet, int tilesWide)
-        {
-            int effectiveTileStride = _blockTileSize + _tilePadding;
-            int textureHeight = spritesheet.Height;
-            int tilesTall = (textureHeight + _tilePadding) / effectiveTileStride;
-            int totalTiles = tilesWide * tilesTall;
+                public void RegisterAtlas(string blockId, Texture2D spritesheet, int tilesWide)
+                {
+                    int effectiveTileStride = _blockTileSize + _tilePadding;
+                    int textureHeight = spritesheet.Height;
+                    int tilesTall = (textureHeight + _tilePadding) / effectiveTileStride;
+                    int totalTiles = tilesWide * tilesTall;
 
-            var rects = new Rectangle[totalTiles];
+                    var rects = new Rectangle[totalTiles];
 
-            for (int i = 0; i < totalTiles; i++)
-            {
-                int col = i % tilesWide;
-                int row = i / tilesWide;
-                int x = col * effectiveTileStride;
-                int y = row * effectiveTileStride;
-                rects[i] = new Rectangle(x, y, _blockTileSize, _blockTileSize);
-            }
+                    for (int i = 0; i < totalTiles; i++)
+                    {
+                        int col = i % tilesWide;
+                        int row = i / tilesWide;
+                        int x = col * effectiveTileStride;
+                        int y = row * effectiveTileStride;
+                        rects[i] = new Rectangle(x, y, _blockTileSize, _blockTileSize);
+                    }
 
-            _atlases[blockId] = new BlockAtlasEntry
-            {
-                Spritesheet = spritesheet,
-                TilesWide = tilesWide,
-                TileSize = _blockTileSize,
-                Padding = _tilePadding,
-                SourceRects = rects
-            };
-        }
+                    _atlases[blockId] = new BlockAtlasEntry
+                    {
+                        Spritesheet = spritesheet,
+                        TilesWide = tilesWide,
+                        TileSize = _blockTileSize,
+                        Padding = _tilePadding,
+                        SourceRects = rects
+                    };
+                }
 
-        public (Texture2D Spritesheet, Rectangle SourceRect)? GetSpriteForVariant(string blockId, byte variantIndex)
-        {
-            if (!_atlases.TryGetValue(blockId, out var entry))
-                return null;
-            if (variantIndex >= entry.SourceRects.Length)
-                return null;
-            return (entry.Spritesheet, entry.SourceRects[variantIndex]);
-        }
+                public (Texture2D Spritesheet, Rectangle SourceRect)? GetSpriteForVariant(string blockId, byte variantIndex)
+                {
+                    if (!_atlases.TryGetValue(blockId, out var entry))
+                        return null;
+                    if (variantIndex >= entry.SourceRects.Length)
+                        return null;
+                    return (entry.Spritesheet, entry.SourceRects[variantIndex]);
+                }
     }
 }

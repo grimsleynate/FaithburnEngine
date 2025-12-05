@@ -40,6 +40,9 @@ namespace FaithburnEngine.CoreGame
         private HotbarRenderer _hotbarRenderer;
         private int _lastScrollValue;
 
+        // Previous mouse state for edge detection
+        private MouseState _prevMouseState;
+
         public Faithburn()
         {
             _graphics = new GraphicsDeviceManager(this);
@@ -110,6 +113,7 @@ namespace FaithburnEngine.CoreGame
             try { uiFont = Content.Load<SpriteFont>("Fonts/UiFont"); } catch { uiFont = null; }
             _hotbarRenderer = new HotbarRenderer(_spriteBatch, _contentLoader, slotBg, uiFont, GraphicsDevice);
             _lastScrollValue = Mouse.GetState().ScrollWheelValue;
+            _prevMouseState = Mouse.GetState();
 
             // Initialize block atlas and load sprite sheets
             var blockAtlas = new BlockAtlas(32, 4);
@@ -143,6 +147,29 @@ namespace FaithburnEngine.CoreGame
 
             // Give the player a Velocity component so InputSystem can control them
             _playerEntity.Set(new FaithburnEngine.Components.Velocity { Value = Vector2.Zero });
+
+            // Give player a proto_pickaxe if there is an empty inventory slot
+            var proto = _contentLoader.GetItem("proto_pickaxe");
+            if (proto != null)
+            {
+                bool placed = false;
+                for (int i = 0; i < _player.Inventory.Slots.Length; i++)
+                {
+                    var s = _player.Inventory.Slots[i];
+                    if (s.IsEmpty)
+                    {
+                        s.Set(proto.Id, 1);
+                        placed = true;
+                        break;
+                    }
+                }
+
+                // If no space, simply discard (delete) the item per current behavior
+                if (!placed)
+                {
+                    // no-op: item dropped/removed
+                }
+            }
 
             // Load player texture using Content (assumes file at Content/Assets/Liliana.png)
             Texture2D playerTex = null;
@@ -187,7 +214,7 @@ namespace FaithburnEngine.CoreGame
             // 3) Try AssetLoader cache as final non-destructive fallback
             if (playerTex == null)
             {
-                playerTex = _asset_loader_get(_assetLoader, "Liliana.png");
+                try { playerTex = _assetLoader.GetTexture("Liliana.png"); } catch { playerTex = null; }
             }
 
             // If we still don't have a player texture, create a simple placeholder so the player is visible.
@@ -200,19 +227,6 @@ namespace FaithburnEngine.CoreGame
                 var pixels = new Color[pw * ph];
                 for (int i = 0; i < pixels.Length; i++) pixels[i] = Color.Magenta;
                 playerTex.SetData(pixels);
-            }
-
-            // Helper: safe AssetLoader lookup (handles nulls)
-            static Texture2D _asset_loader_get(AssetLoader loader, string key)
-            {
-                try
-                {
-                    return loader?.GetTexture(key);
-                }
-                catch
-                {
-                    return null;
-                }
             }
 
             var sprite = new FaithburnEngine.Components.Sprite
@@ -243,7 +257,7 @@ namespace FaithburnEngine.CoreGame
                 new InputSystem(_world, _worldGrid, speed: 360f),
                 new MovementSystem(_world, _worldGrid),
                 new InteractionSystem(_contentLoader, _inventorySystem, _worldGrid, _camera),
-                new InventorySystem(_contentLoader, _world));   
+                new InventorySystem(_contentLoader, _world));
         }
 
         protected override void Update(GameTime gameTime)
@@ -317,6 +331,162 @@ namespace FaithburnEngine.CoreGame
                 ref var vel = ref _playerEntity.Get<Components.Velocity>();
                 _camera.UpdateFollow(pos.Value, vel.Value, dt);
             }
+
+            // Equip or use pickaxe if available and not already in use
+            bool leftClickEdge = (m.LeftButton == ButtonState.Pressed) && (_prevMouseState.LeftButton == ButtonState.Released);
+            if (_playerEntity.IsAlive && leftClickEdge)
+            {
+                // Check if player is already holding an item
+                if (!_playerEntity.Has<FaithburnEngine.Components.HeldItem>())
+                {
+                    // Get the item ID in the currently active hotbar slot
+                    int hotbarIndex = Math.Clamp(_player.HotbarIndex, 0, HotbarConstants.DisplayCount - 1);
+                    var itemInHotbar = _player.Inventory.Slots[hotbarIndex];
+
+                    // If there's an item in the hotbar slot and it's a proto_pickaxe, equip it
+                    if (!itemInHotbar.IsEmpty && itemInHotbar.ItemId == "proto_pickaxe")
+                    {
+                        var pickaxeItem = _contentLoader.GetItem("proto_pickaxe");
+                        if (pickaxeItem != null && !string.IsNullOrEmpty(pickaxeItem.SpriteRef))
+                        {
+                            // Load texture via TextureCache (synchronous)
+                            var tex = TextureCache.GetOrLoad(GraphicsDevice, pickaxeItem.SpriteRef);
+
+                            float duration = pickaxeItem.Stats?.Cooldown > 0 ? pickaxeItem.Stats.Cooldown : 0.3f;
+
+                            // Determine player's facing direction and sprite info
+                            float dir = 1f; // 1 = right, -1 = left
+                            Vector2 playerHalf = new Vector2(0f, 0f);
+                            if (_playerEntity.Has<FaithburnEngine.Components.Sprite>())
+                            {
+                                ref var ps = ref _playerEntity.Get<FaithburnEngine.Components.Sprite>();
+                                // Sprite.Effects: FlipHorizontally means artwork flipped -> player faces RIGHT (art faces left by default)
+                                dir = (ps.Effects == SpriteEffects.FlipHorizontally) ? 1f : -1f;
+
+                                float playerScale = ps.Scale <= 0f ? 1f : ps.Scale;
+                                float halfHeight = ps.Texture != null ? ps.Texture.Height * 0.5f * playerScale : 0f;
+                                float halfWidth = ps.Texture != null ? ps.Texture.Width * 0.5f * playerScale : 0f;
+
+                                float xEdge = dir * (halfWidth + 4f);
+                                // place a handful of pixels below halfway up the sprite so the hand is slightly lower
+                                playerHalf = new Vector2(xEdge, -halfHeight + 8f);
+                                // move 32 pixels closer to the player's body (toward center) and 32 pixels lower to ground
+                                playerHalf.X -= dir * 32f; // closer
+                                playerHalf.Y += 32f;      // lower
+                            }
+                            else if (_playerEntity.Has<FaithburnEngine.Components.Collider>())
+                            {
+                                ref var pc = ref _playerEntity.Get<FaithburnEngine.Components.Collider>();
+                                float halfHeight = pc.Size.Y * 0.5f;
+                                float halfWidth = pc.Size.X * 0.5f;
+                                float xEdge = dir * (halfWidth + 4f);
+                                playerHalf = new Vector2(xEdge, -halfHeight);
+                            }
+
+                            // Pivot at bottom-left of texture (handle end). Texture coordinate (0, texture.Height)
+                            var pivot = new Vector2(0f, tex.Height);
+
+                            var heldItem = new FaithburnEngine.Components.HeldItem
+                            {
+                                ItemId = pickaxeItem.Id,
+                                Texture = tex,
+                                Offset = playerHalf, // world offset where pivot should be placed
+                                Pivot = pivot,
+                                Scale = 1f,
+                                Rotation = 0f,
+                                Duration = duration,
+                                TimeLeft = duration
+                            };
+
+                            _playerEntity.Set(heldItem);
+                        }
+                    }
+                }
+            }
+
+            // Update held-item animation (swing) if present
+            if (_playerEntity.IsAlive && _playerEntity.Has<FaithburnEngine.Components.HeldItem>())
+            {
+                ref var hi = ref _playerEntity.Get<FaithburnEngine.Components.HeldItem>();
+                hi.TimeLeft -= dt;
+                if (hi.TimeLeft <= 0f)
+                {
+                    // Swing finished; remove component
+                    _playerEntity.Remove<FaithburnEngine.Components.HeldItem>();
+
+                    // If mouse is still held, and the active hotbar slot still has the same pickaxe, start another swing
+                    if (m.LeftButton == ButtonState.Pressed)
+                    {
+                        int hotbarIndex = Math.Clamp(_player.HotbarIndex, 0, HotbarConstants.DisplayCount - 1);
+                        var slot = _player.Inventory.Slots[hotbarIndex];
+                        if (!slot.IsEmpty && slot.ItemId == "proto_pickaxe")
+                        {
+                            var pickaxeItem = _contentLoader.GetItem("proto_pickaxe");
+                            if (pickaxeItem != null && !string.IsNullOrEmpty(pickaxeItem.SpriteRef))
+                            {
+                                var tex = TextureCache.GetOrLoad(GraphicsDevice, pickaxeItem.SpriteRef);
+                                float duration = pickaxeItem.Stats?.Cooldown > 0 ? pickaxeItem.Stats.Cooldown : 0.3f;
+
+                                // Determine player's facing direction and sprite info
+                                float dir = 1f; // 1 = right, -1 = left
+                                Vector2 playerHalf = new Vector2(0f, 0f);
+                                if (_playerEntity.Has<FaithburnEngine.Components.Sprite>())
+                                {
+                                    ref var ps = ref _playerEntity.Get<FaithburnEngine.Components.Sprite>();
+                                    // Sprite.Effects: FlipHorizontally means artwork flipped -> player faces RIGHT (art faces left by default)
+                                    dir = (ps.Effects == SpriteEffects.FlipHorizontally) ? 1f : -1f;
+
+                                    float playerScale = ps.Scale <= 0f ? 1f : ps.Scale;
+                                    float halfHeight = ps.Texture != null ? ps.Texture.Height * 0.5f * playerScale : 0f;
+                                    float halfWidth = ps.Texture != null ? ps.Texture.Width * 0.5f * playerScale : 0f;
+
+                                    float xEdge = dir * (halfWidth + 4f);
+                                    // place a handful of pixels below halfway up the sprite so the hand is slightly lower
+                                    playerHalf = new Vector2(xEdge, -halfHeight + 8f);
+                                    // move 32 pixels closer to the player's body (toward center) and 32 pixels lower to ground
+                                    playerHalf.X -= dir * 32f; // closer
+                                    playerHalf.Y += 32f;      // lower
+                                }
+                                else if (_playerEntity.Has<FaithburnEngine.Components.Collider>())
+                                {
+                                    ref var pc = ref _playerEntity.Get<FaithburnEngine.Components.Collider>();
+                                    float halfHeight = pc.Size.Y * 0.5f;
+                                    float halfWidth = pc.Size.X * 0.5f;
+                                    float xEdge = dir * (halfWidth + 4f);
+                                    playerHalf = new Vector2(xEdge, -halfHeight);
+                                }
+
+                                // Pivot at bottom-left of texture (handle end). Texture coordinate (0, texture.Height)
+                                var pivot = new Vector2(0f, tex.Height);
+
+                                var newHeld = new FaithburnEngine.Components.HeldItem
+                                {
+                                    ItemId = pickaxeItem.Id,
+                                    Texture = tex,
+                                    Offset = playerHalf, // world offset where pivot should be placed
+                                    Pivot = pivot,
+                                    Scale = 1f,
+                                    Rotation = 0f,
+                                    Duration = duration,
+                                    TimeLeft = duration
+                                };
+
+                                _playerEntity.Set(newHeld);
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    float t = 1f - (hi.TimeLeft / Math.Max(0.0001f, hi.Duration)); // 0..1 progress
+                    // simple swing curve: sine from -0.9 to +0.9 radians
+                    float swing = (float)Math.Sin(t * Math.PI) * 0.9f;
+                    hi.Rotation = swing;
+                    _playerEntity.Set(hi);
+                }
+            }
+
+            _prevMouseState = m;
 
             base.Update(gameTime);
         }
