@@ -1,34 +1,5 @@
 ﻿[
   {
-    "id": "wood",
-    "type": "Block",
-    "stackMax": 9999,
-    "stats": {},
-    "spriteRef": "wood.png"
-  },
-  {
-    "id": "plank",
-    "type": "Decoration",
-    "stackMax": 9999,
-    "stats": {},
-    "spriteRef": "plank.png"
-  },
-  {
-    "id": "stone_pick",
-    "type": "Tool",
-    "toolKind":  "Pickaxe",
-    "stackMax": 1,
-    "stats": { "harvestPower":  2, "damage":  2 },
-    "spriteRef": "stone_pick.png"
-  },
-  {
-    "id": "sword",
-    "type": "Weapon",
-    "stackMax": 1,
-    "stats": { "damage": 5, "cooldown":  0.6 },
-    "spriteRef": "sword.png"
-  },
-  {
     "id": "proto_pickaxe",
     "type": "Tool,Weapon",
     "toolKind": "Pickaxe",

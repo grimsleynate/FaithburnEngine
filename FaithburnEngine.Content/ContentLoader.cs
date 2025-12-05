@@ -9,6 +9,9 @@ namespace FaithburnEngine.Content
     public sealed class ContentLoader
     {
         private readonly string _contentRoot;
+        private readonly List<ItemDef> _pendingItems = new();
+        private readonly List<BlockDef> _pendingBlocks = new();
+        private readonly List<HarvestRule> _pendingHarvestRules = new();
 
         public string ContentRoot => _contentRoot;
 
@@ -47,8 +50,17 @@ namespace FaithburnEngine.Content
             HarvestRules = LoadJsonList<HarvestRule>("Harvest_Rules/Harvest_Rules.json");
             EnemyAI = LoadJsonDict<Dictionary<string, EnemyAISettings>>("Enemy_Ai_Settings/Enemy_Ai_Settings.json");
 
-            ItemsById = Items.ToImmutableDictionary(i => i.Id);
-            BlocksById = Blocks.ToImmutableDictionary(b => b.Id);
+            // Scan mods folder for manifests and merge
+            ScanModsAndMerge(Path.Combine(_contentRoot, "Mods"));
+
+            // Merge pending registry content (from mods via registry API)
+            if (_pendingItems.Count > 0) Items = Items.Concat(_pendingItems).ToList();
+            if (_pendingBlocks.Count > 0) Blocks = Blocks.Concat(_pendingBlocks).ToList();
+            if (_pendingHarvestRules.Count > 0) HarvestRules = HarvestRules.Concat(_pendingHarvestRules).ToList();
+
+            // Build indices with id conflict policy: last writer wins, log conflicts
+            ItemsById = BuildIndex(Items, i => i.Id, "ItemDef");
+            BlocksById = BuildIndex(Blocks, b => b.Id, "BlockDef");
 
             Debug.WriteLine($"ContentLoader finished: Items={Items.Count}, Blocks={Blocks.Count}, HarvestRules={HarvestRules.Count}, EnemyAI={EnemyAI?.Count ?? 0}");
         }
@@ -137,6 +149,85 @@ namespace FaithburnEngine.Content
             {
                 Debug.WriteLine($"Error enumerating directory {dir}: {ex}");
             }
+        }
+
+        private void ScanModsAndMerge(string modsRoot)
+        {
+            try
+            {
+                if (!Directory.Exists(modsRoot)) return;
+                var manifests = Directory.GetFiles(modsRoot, "*.json", SearchOption.AllDirectories);
+                foreach (var manifest in manifests)
+                {
+                    try
+                    {
+                        var json = File.ReadAllText(manifest);
+                        var doc = JsonDocument.Parse(json);
+                        if (doc.RootElement.TryGetProperty("items", out var itemsEl))
+                        {
+                            var modsItems = JsonSerializer.Deserialize<List<ItemDef>>(itemsEl.GetRawText(), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                            if (modsItems != null) _pendingItems.AddRange(modsItems);
+                        }
+                        if (doc.RootElement.TryGetProperty("blocks", out var blocksEl))
+                        {
+                            var modsBlocks = JsonSerializer.Deserialize<List<BlockDef>>(blocksEl.GetRawText(), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                            if (modsBlocks != null) _pendingBlocks.AddRange(modsBlocks);
+                        }
+                        if (doc.RootElement.TryGetProperty("harvestRules", out var hrEl))
+                        {
+                            var modsHr = JsonSerializer.Deserialize<List<HarvestRule>>(hrEl.GetRawText(), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                            if (modsHr != null) _pendingHarvestRules.AddRange(modsHr);
+                        }
+                        Debug.WriteLine($"Loaded mod manifest: {manifest}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error parsing mod manifest {manifest}: {ex}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"ScanMods error: {ex}");
+            }
+        }
+
+        private ImmutableDictionary<string, T> BuildIndex<T>(IEnumerable<T> src, Func<T, string> keySel, string kind)
+        {
+            var dict = new Dictionary<string, T>();
+            foreach (var it in src)
+            {
+                var id = keySel(it);
+                if (string.IsNullOrWhiteSpace(id)) continue;
+                if (dict.ContainsKey(id))
+                {
+                    Debug.WriteLine($"{kind} id conflict: {id} — last writer wins.");
+                }
+                dict[id] = it;
+            }
+            return dict.ToImmutableDictionary();
+        }
+
+        // Simple registry implementation
+        public IContentRegistry GetRegistry()
+        {
+            return new RegistryImpl(this);
+        }
+
+        public interface IContentRegistry
+        {
+            void RegisterItemDef(ItemDef item);
+            void RegisterBlockDef(BlockDef block);
+            void RegisterHarvestRule(HarvestRule rule);
+        }
+
+        private sealed class RegistryImpl : IContentRegistry
+        {
+            private readonly ContentLoader _owner;
+            public RegistryImpl(ContentLoader owner) { _owner = owner; }
+            public void RegisterItemDef(ItemDef item) => _owner._pendingItems.Add(item);
+            public void RegisterBlockDef(BlockDef block) => _owner._pendingBlocks.Add(block);
+            public void RegisterHarvestRule(HarvestRule rule) => _owner._pendingHarvestRules.Add(rule);
         }
     }
 }

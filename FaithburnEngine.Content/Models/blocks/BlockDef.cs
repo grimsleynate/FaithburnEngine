@@ -1,11 +1,12 @@
 ﻿using System.Collections.Generic;
+using Microsoft.Xna.Framework;
 
 namespace FaithburnEngine.Content.Models
 {
     /// <summary>
     /// A destroyable block in the game.
     /// </summary>
-    public sealed class BlockDef
+    public sealed class BlockDef : FaithburnEngine.Content.IHarvestable
     {
         /// <summary>
         /// Unique id for lookup from JSON and in-game references.
@@ -32,6 +33,8 @@ namespace FaithburnEngine.Content.Models
         /// (e.g., light levels, biome affinities, lore tags) without schema changes.
         /// </summary>
         public Dictionary<string, object>? CustomProperties { get; set; }
+
+        public void OnHarvested(Point tile) { /* no-op by default */ }
     }
 
 }

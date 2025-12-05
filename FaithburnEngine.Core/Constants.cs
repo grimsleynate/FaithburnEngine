@@ -28,6 +28,11 @@ namespace FaithburnEngine.Core
 
             // Collision/snap tuning
             public const float CollisionSkin = 0.5f; // pixels applied inward to AABB checks to reduce corner snagging
+            // Step/climb tuning
+            public const int MaxStepTiles = 1; // how many tiles high the player can step
+            public const float ClimbCooldown = 0.12f; // seconds between successive micro-climbs
+            public const float StepHorizontalThreshold = 4f; // min horizontal speed to consider step-up
+            public const float StepUpLerpSpeed = 8f; // per-second lerp speed for smooth step-up
         }
 
         // --- Mining related constants ---

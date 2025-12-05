@@ -186,6 +186,9 @@ namespace FaithburnEngine.Systems
 
             // Remove block and give yields using existing logic
             _world.SetBlock(tileCoord, "air");
+            // Moddability: invoke optional post-harvest behavior on block
+            try { (block as FaithburnEngine.Content.IHarvestable)?.OnHarvested(tileCoord); } catch { /* ignore mod errors */ }
+
             var rng = new Random(); // WHY: inject RNG for determinism in tests in the future
             foreach (var y in rule.Yields)
             {
