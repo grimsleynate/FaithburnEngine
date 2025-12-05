@@ -5,8 +5,29 @@ namespace FaithburnEngine.Core
         // --- Player movement related constants ---
         public static class Player
         {
-            public const float DefaultSpeed = 360f;
-            public const float DefaultJumpVelocity = 960f;
+            // Physics
+            public const float Gravity = 2200f; // pixels/s^2
+            public const float FallMultiplier = 2.2f;
+            public const float LowJumpMultiplier = 2.0f;
+            public const float MaxFallSpeed = 1600f;
+
+            // Movement tuning
+            public const float MaxSpeed = 420f;
+            public const float AccelGround = 6000f;
+            public const float AccelAir = 2800f;
+            public const float DecelGround = 8000f;
+            public const float DecelAir = 3500f;
+
+            // Jump tuning
+            public const float JumpVelocity = 960f;
+            public const float CoyoteTime = 0.12f; // seconds
+            public const float JumpBufferTime = 0.12f; // seconds
+
+            // Wall jump / unstick
+            public const float WallUnstickImpulse = 160f; // horizontal impulse applied when jumping off wall
+
+            // Collision/snap tuning
+            public const float CollisionSkin = 0.5f; // pixels applied inward to AABB checks to reduce corner snagging
         }
 
         // --- Mining related constants ---
