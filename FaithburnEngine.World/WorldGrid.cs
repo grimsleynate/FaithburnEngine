@@ -123,5 +123,46 @@ namespace FaithburnEngine.World
                 RecalculateVariant(coord);
             }
         }
+
+        /// <summary>
+        /// Get the Y index of the top-most solid tile in the given column (X).
+        /// Returns 0 if no tile is present. Used for spawning entities on the surface.
+        /// </summary>
+        public int GetTopMostSolidTileY(int x)
+        {
+            int? minY = null;
+            foreach (var kvp in _blockIds)
+            {
+                if (kvp.Key.X != x) continue;
+                var def = _content.GetBlock(kvp.Value);
+                if (def == null || !def.Solid) continue;
+                if (!minY.HasValue || kvp.Key.Y < minY.Value) minY = kvp.Key.Y;
+            }
+            return minY ?? 0;
+        }
+
+        /// <summary>
+        /// Get minimum X and maximum X coordinates currently stored in the world grid.
+        /// Returns 0 for min/max if world is empty.
+        /// </summary>
+        public int GetMinX()
+        {
+            int? min = null;
+            foreach (var p in _blockIds.Keys)
+            {
+                if (!min.HasValue || p.X < min.Value) min = p.X;
+            }
+            return min ?? 0;
+        }
+
+        public int GetMaxX()
+        {
+            int? max = null;
+            foreach (var p in _blockIds.Keys)
+            {
+                if (!max.HasValue || p.X > max.Value) max = p.X;
+            }
+            return max ?? 0;
+        }
     }
 }

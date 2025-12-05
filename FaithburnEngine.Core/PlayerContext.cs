@@ -7,20 +7,11 @@ namespace FaithburnEngine.Core
         /// <summary>
         /// Inventory storage. Separated from UI (FaithburnEngine.UI) to keep mechanics independent
         /// of presentation. Enables multiple UIs, serialization, and testing without graphics.
-        /// 
-        /// FUTURE: Will become an InventoryComponent { items: ItemStack[]; capacity: int; }
         /// </summary>
         public Inventory.Inventory Inventory { get; }
 
         /// <summary>
         /// Currently selected hotbar slot index (0-11).
-        /// 
-        /// WHY SEPARATE:
-        /// Selection state is independent of inventory items. Allows quick-switching and enables
-        /// modders to create custom hotbar behaviors (filters, aliases, multi-key bindings) without
-        /// modifying core inventory.
-        /// 
-        /// Tenet #1 (Moddable): Different hotbar layouts can be created by modding this component.
         /// </summary>
         public int HotbarIndex { get; set; }
 

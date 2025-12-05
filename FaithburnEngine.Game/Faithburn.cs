@@ -10,6 +10,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
 using System.IO;
+using DefaultEcs;
 
 namespace FaithburnEngine.CoreGame
 {
@@ -36,12 +37,14 @@ namespace FaithburnEngine.CoreGame
         private InteractionSystem _interactionSystem;
         private AssetLoader _assetLoader;
         private Camera2D _camera;
-        private float _cameraSpeed = 600f; 
         private float desiredZoom = 1.0f; 
 
         // ECS pipeline fields
         private SequentialSystem<float> _systems;
         private DefaultParallelRunner _runner;
+
+        // Keep a reference to the player entity so we can read position/velocity for camera follow
+        private Entity _playerEntity;
 
         public Faithburn()
         {
@@ -133,9 +136,110 @@ namespace FaithburnEngine.CoreGame
             _interactionSystem = new InteractionSystem(_contentLoader, _inventorySystem, _worldGrid, _camera);
             _spriteRenderer = new SpriteRenderer(_world, _spriteBatch, blockAtlas, _worldGrid, _camera);
 
+            // Create player entity and set initial position and sprite
+            // Place X at half of world width and Y at top-most solid tile for that column
+            int minX = _worldGrid.GetMinX();
+            int maxX = _worldGrid.GetMaxX();
+            int spawnXTile = (minX + maxX) / 2;
+            int topY = _worldGrid.GetTopMostSolidTileY(spawnXTile);
+
+            _playerEntity = _world.CreateEntity();
+            // Position.Value represents the player's feet world coordinate (x,y)
+            var playerPos = new FaithburnEngine.Components.Position { Value = new Vector2(spawnXTile * _worldGrid.TileSize + _worldGrid.TileSize / 2f, topY * _worldGrid.TileSize) };
+            _playerEntity.Set(playerPos);
+
+            // Give the player a Velocity component so InputSystem can control them
+            _playerEntity.Set(new FaithburnEngine.Components.Velocity { Value = Vector2.Zero });
+
+            // Load player texture using Content (assumes file at Content/Assets/Liliana.png)
+            Texture2D playerTex = null;
+            // 1) Try content pipeline (asset name without extension)
+            try
+            {
+                playerTex = Content.Load<Texture2D>("Assets/Liliana");
+            }
+            catch
+            {
+                // ignore and try disk load
+            }
+
+            // 2) If Content.Load failed, try loading the PNG directly from disk (common in non-Content pipeline setups)
+            if (playerTex == null)
+            {
+                string[] candidatePaths = new[] {
+                    Path.Combine(AppContext.BaseDirectory, "Content", "Assets", "Liliana.png"),
+                    Path.Combine(AppContext.BaseDirectory, "Content", "Liliana.png"),
+                    Path.Combine(AppContext.BaseDirectory, "Content", "Assets", "sprites", "Liliana.png"),
+                    Path.Combine(AppContext.BaseDirectory, "Content", "Assets", "Sprites", "Liliana.png")
+                };
+
+                foreach (var p in candidatePaths)
+                {
+                    try
+                    {
+                        if (File.Exists(p))
+                        {
+                            using var fs = File.OpenRead(p);
+                            playerTex = Texture2D.FromStream(GraphicsDevice, fs);
+                            break;
+                        }
+                    }
+                    catch
+                    {
+                        // keep trying other paths
+                    }
+                }
+            }
+
+            // 3) Try AssetLoader cache as final non-destructive fallback
+            if (playerTex == null)
+            {
+                playerTex = _asset_loader_get(_assetLoader, "Liliana.png");
+            }
+
+            // If we still don't have a player texture, create a simple placeholder so the player is visible.
+            if (playerTex == null)
+            {
+                System.Diagnostics.Debug.WriteLine("Failed to load Liliana.png from content or disk; using magenta placeholder.");
+                int pw = 64;
+                int ph = 96;
+                playerTex = new Texture2D(GraphicsDevice, pw, ph);
+                var pixels = new Color[pw * ph];
+                for (int i = 0; i < pixels.Length; i++) pixels[i] = Color.Magenta;
+                playerTex.SetData(pixels);
+            }
+
+            // Helper: safe AssetLoader lookup (handles nulls)
+            static Texture2D _asset_loader_get(AssetLoader loader, string key)
+            {
+                try
+                {
+                    return loader?.GetTexture(key);
+                }
+                catch
+                {
+                    return null;
+                }
+            }
+
+            var sprite = new FaithburnEngine.Components.Sprite
+            {
+                Texture = playerTex,
+                // Use bottom-center origin so Position corresponds to feet on the ground
+                Origin = new Vector2(playerTex.Width / 2f, playerTex.Height),
+                Tint = Color.White,
+                Scale = 1f
+            };
+            _playerEntity.Set(sprite);
+
+            // Center camera on player initially and use very small deadzone so player remains centered
+            ref var ppos = ref _playerEntity.Get<FaithburnEngine.Components.Position>();
+            _camera.Position = ppos.Value;
+            _camera.DeadZoneSize = new Vector2(2f, 2f); // tiny deadzone to avoid micro-jitter but keep player centered
+
             _systems = new SequentialSystem<float>(
                 new ParallelSystem<float>(_runner,
-                    new InputSystem(_world, speed: 180f),
+                    new InputSystem(_world, speed: 360f),
                     new MovementSystem(_world)
             ),
             new InteractionSystem(_contentLoader, _inventorySystem, _worldGrid, _camera),
@@ -145,28 +249,23 @@ namespace FaithburnEngine.CoreGame
         protected override void Update(GameTime gameTime)
         {
             var k = Keyboard.GetState();
-            Vector2 inputDelta = Vector2.Zero;
-
-            if (k.IsKeyDown(Keys.W) || k.IsKeyDown(Keys.Up)) inputDelta.Y -= 1f;
-            if (k.IsKeyDown(Keys.S) || k.IsKeyDown(Keys.Down)) inputDelta.Y += 1f;
-            if (k.IsKeyDown(Keys.A) || k.IsKeyDown(Keys.Left)) inputDelta.X -= 1f;
-            if (k.IsKeyDown(Keys.D) || k.IsKeyDown(Keys.Right)) inputDelta.X += 1f;
-
-            if (inputDelta != Vector2.Zero)
-                inputDelta.Normalize();
-
-            float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
-            _camera.Position += inputDelta * _cameraSpeed * dt;
 
             // optional: zoom with + / - keys
-            if (k.IsKeyDown(Keys.OemPlus) || k.IsKeyDown(Keys.Add)) _camera.Zoom += 0.5f * dt;
-            if (k.IsKeyDown(Keys.OemMinus) || k.IsKeyDown(Keys.Subtract)) _camera.Zoom -= 0.5f * dt;
+            if (k.IsKeyDown(Keys.OemPlus) || k.IsKeyDown(Keys.Add)) _camera.Zoom += 0.5f * (float)gameTime.ElapsedGameTime.TotalSeconds;
+            if (k.IsKeyDown(Keys.OemMinus) || k.IsKeyDown(Keys.Subtract)) _camera.Zoom -= 0.5f * (float)gameTime.ElapsedGameTime.TotalSeconds;
 
+            float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
 
             // ALL gameplay logic flows through systems (Tenet #4 - ECS First).
-            // New feature? Create a system, register it in Initialize().
-            // No need to modify Update(). This is how moddable game engines work.
             _systems.Update(dt);
+
+            // After systems update, make the camera follow the player
+            if (_playerEntity.IsAlive)
+            {
+                ref var pos = ref _playerEntity.Get<Components.Position>();
+                ref var vel = ref _playerEntity.Get<Components.Velocity>();
+                _camera.UpdateFollow(pos.Value, vel.Value, dt);
+            }
 
             base.Update(gameTime);
         }

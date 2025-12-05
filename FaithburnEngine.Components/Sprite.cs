@@ -9,5 +9,6 @@ namespace FaithburnEngine.Components
         public Vector2 Origin;
         public Color Tint;
         public float Scale;
+        public SpriteEffects Effects;
     }
 }

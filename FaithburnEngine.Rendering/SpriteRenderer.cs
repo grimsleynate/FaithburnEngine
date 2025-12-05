@@ -162,8 +162,8 @@ namespace FaithburnEngine.Rendering
                 var origin = sprite.Origin;
                 var tint = sprite.Tint == default ? Color.White : sprite.Tint;
                 var scale = sprite.Scale <= 0f ? 1f : sprite.Scale;
-
-                _spriteBatch.Draw(sprite.Texture, pos.Value, null, tint, 0f, origin, scale, SpriteEffects.None, 0f);
+                var effects = sprite.Effects;
+                _spriteBatch.Draw(sprite.Texture, pos.Value, null, tint, 0f, origin, scale, effects, 0f);
             }
         }
 

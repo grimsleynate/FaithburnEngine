@@ -2,6 +2,7 @@
 using DefaultEcs.System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
+using Microsoft.Xna.Framework.Graphics;
 using FaithburnEngine.Components;
 
 namespace FaithburnEngine.Systems
@@ -10,7 +11,7 @@ namespace FaithburnEngine.Systems
     {
         private readonly float _speed;
 
-        public InputSystem(DefaultEcs.World world, float speed = 160f)
+        public InputSystem(DefaultEcs.World world, float speed = 360f)
             : base(world.GetEntities().With<Position>().With<Velocity>().AsSet())
         {    
             _speed = speed; 
@@ -28,6 +29,22 @@ namespace FaithburnEngine.Systems
 
             ref var vel = ref entity.Get<Velocity>();
             vel.Value = new Vector2(dir.X * _speed, vel.Value.Y);
+
+            // Flip sprite horizontally based on movement direction
+            if (entity.Has<Sprite>())
+            {
+                ref var sprite = ref entity.Get<Sprite>();
+                if (dir.X > 0f)
+                {
+                    // sprite art faces left by default; flip when moving right
+                    sprite.Effects = SpriteEffects.FlipHorizontally;
+                }
+                else if (dir.X < 0f)
+                {
+                    sprite.Effects = SpriteEffects.None;
+                }
+                // if dir.X == 0, keep previous orientation
+            }
         }
     }
 }
