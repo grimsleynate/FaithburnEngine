@@ -53,36 +53,7 @@ namespace FaithburnEngine.Systems
 
         private void ProcessHitbox(Rectangle rect, string? itemId, Entity? owner)
         {
-            // 1) Tile interactions: break tiles overlapping the hitbox if item's harvest power allows
-            if (_worldGrid != null && !string.IsNullOrEmpty(itemId))
-            {
-                var def = _content.GetItem(itemId);
-                if (def != null)
-                {
-                    int tileSize = _worldGrid.TileSize;
-                    int left = rect.Left / tileSize;
-                    int right = (rect.Right - 1) / tileSize;
-                    int top = rect.Top / tileSize;
-                    int bottom = (rect.Bottom - 1) / tileSize;
-
-                    for (int ty = top; ty <= bottom; ty++)
-                    {
-                        for (int tx = left; tx <= right; tx++)
-                        {
-                            var coord = new Point(tx, ty);
-                            var block = _worldGrid.GetBlock(coord);
-                            if (block != null && block.Id != "air")
-                            {
-                                // Simple rule: if item has any harvest power, break the block
-                                if (def.Stats?.HarvestPower > 0)
-                                {
-                                    _worldGrid.SetBlock(coord, "air");
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            // Tools no longer break tiles via hitboxes; harvesting is click-driven in InteractionSystem
 
             // 2) Entity interactions: find entities with Collider and Damageable and apply damage
             // Use DefaultEcs query. This is coarse but acceptable for PoC; optimize later with spatial buckets.
@@ -114,7 +85,8 @@ namespace FaithburnEngine.Systems
                         {
                             var idef = _content.GetItem(itemId);
                             if (idef != null) dmg = idef.Stats?.Damage ?? 0f;
-                            dmg *= idef?.HitboxDamageMultiplier ?? 1f;
+
+                            // no extra multiplier; use base damage only
                         }
 
                         dam.Health -= dmg;

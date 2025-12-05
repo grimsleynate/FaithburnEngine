@@ -41,26 +41,6 @@ namespace FaithburnEngine.Content.Models
         // direction as the player. This avoids hardcoding item ids in renderer.
         public bool FlipToFacePlayer { get; set; } = false;
 
-        // Optional pivot in texture pixels (if null, pivot will be computed as bottom-left)
-        public int? PivotX { get; set; }
-        public int? PivotY { get; set; }
-
-        // Optional hand offset override in pixels relative to player's feet (if null, computed)
-        public int? HandOffsetX { get; set; }
-        public int? HandOffsetY { get; set; }
-
-        // Hitbox metadata for active use (optional)
-        // Hitbox size in pixels
-        public int? HitboxWidth { get; set; }
-        public int? HitboxHeight { get; set; }
-        // Offset from the pivot/hand point (in world pixels) where hitbox should be placed
-        public int? HitboxOffsetX { get; set; }
-        public int? HitboxOffsetY { get; set; }
-        // How long the hitbox should exist (seconds)
-        public float? HitboxLifetime { get; set; }
-        // Optional damage multiplier applied to item base damage
-        public float? HitboxDamageMultiplier { get; set; }
-
         /// <summary>
         /// Extensibility hook for mods and content packs. Allows arbitrary metadata
         /// (e.g., lore tags, elemental types, custom behaviors) without schema changes.

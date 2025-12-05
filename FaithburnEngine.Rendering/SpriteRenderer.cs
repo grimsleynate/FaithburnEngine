@@ -301,12 +301,8 @@ namespace FaithburnEngine.Rendering
                             }
                         }
 
-                        // Compute originForDraw using pivot override from ItemDef if provided; otherwise use HeldItem.Pivot
+                        // Origin for draw uses HeldItem.Pivot only
                         pivot = hi.Pivot;
-                        if (itemDef != null && itemDef.PivotX.HasValue && itemDef.PivotY.HasValue)
-                        {
-                            pivot = new Vector2(itemDef.PivotX.Value, itemDef.PivotY.Value);
-                        }
 
                         var originForDraw = pivot;
                         if (heldEffects.HasFlag(SpriteEffects.FlipHorizontally))

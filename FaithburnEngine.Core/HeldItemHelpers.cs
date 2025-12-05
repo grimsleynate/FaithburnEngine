@@ -28,43 +28,14 @@ namespace FaithburnEngine.Core
         {
             float dir = (playerEffects == SpriteEffects.FlipHorizontally) ? 1f : -1f;
 
-            Vector2 playerHalf;
-            if (hasSprite && playerTexWidth > 0 && playerTexHeight > 0)
-            {
-                float scale = playerScale <= 0f ? 1f : playerScale;
-                float halfHeight = playerTexHeight * 0.5f * scale;
-                float halfWidth = playerTexWidth * 0.5f * scale;
-
-                float xEdge = dir * (halfWidth + VisualConstants.HandEdgePadding);
-                playerHalf = new Vector2(xEdge, -halfHeight + VisualConstants.HandYAdjust);
-                playerHalf.X -= dir * VisualConstants.HandBodyOffset;
-                playerHalf.Y += VisualConstants.HandBodyOffset;
-            }
-            else
-            {
-                float halfHeight = colliderSize.Y * 0.5f;
-                float halfWidth = colliderSize.X * 0.5f;
-                float xEdge = dir * (halfWidth + VisualConstants.HandEdgePadding);
-                playerHalf = new Vector2(xEdge, -halfHeight);
-            }
-
-            // If item provides explicit HandOffset, use that (relative to feet)
-            if (itemHandOffsetX.HasValue && itemHandOffsetY.HasValue)
-            {
-                playerHalf = new Vector2(itemHandOffsetX.Value, itemHandOffsetY.Value);
-            }
+            // Default spawn point: player hand
+            // 32px toward facing from player center X, and 48px above feet
+            Vector2 playerHalf = new Vector2(dir * 32f, -48f);
 
             // Compute pivot
             Vector2 pivot;
-            if (itemPivotX.HasValue && itemPivotY.HasValue)
-            {
-                pivot = new Vector2(itemPivotX.Value, itemPivotY.Value);
-            }
-            else
-            {
-                // default pivot at bottom-left of item texture
-                pivot = new Vector2(0f, itemTextureHeight);
-            }
+            // default pivot at bottom-left of item texture
+            pivot = new Vector2(0f, itemTextureHeight);
 
             return (playerHalf, pivot);
         }

@@ -314,8 +314,16 @@ namespace FaithburnEngine.CoreGame
 
              float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
 
+             // Click-to-harvest: forward mouse state to InteractionSystem so mining intents start based on hardness/harvestPower
+             if (_interactionSystem != null)
+             {
+                 bool left = m.LeftButton == ButtonState.Pressed;
+                 bool right = m.RightButton == ButtonState.Pressed;
+                 _interactionSystem.HandleMouse(_player, m, left, right);
+             }
+
              // ALL gameplay logic flows through systems (Tenet #4 - ECS First).
-             _systems.Update(dt);
+              _systems.Update(dt);
 
             // After systems update, make the camera follow the player
             if (_playerEntity.IsAlive)
@@ -388,29 +396,25 @@ namespace FaithburnEngine.CoreGame
                      {
                          // Look up item def
                          var itemDef = _contentLoader.GetItem(hi.ItemId);
-                         if (itemDef != null && itemDef.HitboxWidth.HasValue && itemDef.HitboxHeight.HasValue)
+                         if (itemDef != null)
                          {
                              // Compute hitbox world rect based on pivot world position (player pos + hi.Offset)
                              var pivotWorld = _playerEntity.Get<FaithburnEngine.Components.Position>().Value + hi.Offset;
                              
-                             int hw = itemDef.HitboxWidth.Value;
-                             int hh = itemDef.HitboxHeight.Value;
-                             int ox = itemDef.HitboxOffsetX ?? 0;
-                             int oy = itemDef.HitboxOffsetY ?? 0;
-                             
-                             // If player is flipped, mirror offset.x
-                             bool flipped = _playerEntity.Has<FaithburnEngine.Components.Sprite>() && 
-                                            _playerEntity.Get<FaithburnEngine.Components.Sprite>().Effects.HasFlag(Microsoft.Xna.Framework.Graphics.SpriteEffects.FlipHorizontally);
-                             int finalOx = flipped ? -ox - hw : ox;
+                             // Simple default hitbox: 40x20, offset forward from hand
+                             int hw = 40;
+                             int hh = 20;
+                             int ox = 16;
+                             int oy = 0;
                              
                              var rect = new Microsoft.Xna.Framework.Rectangle(
-                                 (int)(pivotWorld.X + finalOx),
+                                 (int)(pivotWorld.X + ox),
                                  (int)(pivotWorld.Y + oy - hh), // convert to top-left y
                                  hw,
                                  hh);
                              
                              // Spawn pooled hitbox using cached system
-                             _hitboxSystem.SpawnHitbox(rect, itemDef.HitboxLifetime ?? 0.1f, hi.ItemId, _playerEntity);
+                             _hitboxSystem.SpawnHitbox(rect, 0.1f, hi.ItemId, _playerEntity);
                              hi.HitboxSpawned = true;
                              _playerEntity.Set(hi);
                          }
@@ -481,11 +485,9 @@ namespace FaithburnEngine.CoreGame
                 colliderSize = pc.Size;
             }
 
-            FaithburnEngine.Content.Models.ItemDef def = _contentLoader.GetItem(item.Id) ?? new FaithburnEngine.Content.Models.ItemDef();
-
             var (offset, pivot) = FaithburnEngine.Core.HeldItemHelpers.ComputeVisuals(
                 pW, pH, pScale, pEffects, hasSprite, colliderSize,
-                def.PivotX, def.PivotY, def.HandOffsetX, def.HandOffsetY,
+                null, null, null, null,
                 tex?.Height ?? 0);
 
             return new FaithburnEngine.Components.HeldItem
