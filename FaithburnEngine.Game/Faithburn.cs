@@ -14,10 +14,6 @@ using DefaultEcs;
 
 namespace FaithburnEngine.CoreGame
 {
-    /// <summary>
-    /// Main game orchestrator. Follows Entity Component System (ECS) architecture.
-
-    /// </summary>
     public class Faithburn : Game
     {
         private GraphicsDeviceManager _graphics;
@@ -40,10 +36,18 @@ namespace FaithburnEngine.CoreGame
         // Keep a reference to the player entity so we can read position/velocity for camera follow
         private Entity _playerEntity;
 
+        // Hotbar UI
+        private HotbarRenderer _hotbarRenderer;
+        private int _lastScrollValue;
+        private const int HotbarDisplayCount = 10; // show 10 hotbar slots (1..0 keys)
+        private const int HotbarSlotSize = 48;
+        private const int HotbarPadding = 6;
+
         public Faithburn()
         {
             _graphics = new GraphicsDeviceManager(this);
             Content.RootDirectory = "Content";
+            IsMouseVisible = true;
             
             IsFixedTimeStep = true;
             TargetElapsedTime = TimeSpan.FromSeconds(1.0 / 60.0); // 60 FPS
@@ -91,7 +95,8 @@ namespace FaithburnEngine.CoreGame
 
         protected override void LoadContent()
         {
-            _player = new PlayerContext(12);
+            // Create player with 10 inventory slots (hotbar uses first 10)
+            _player = new PlayerContext(10);
 
             _contentLoader = new ContentLoader(Path.Combine(AppContext.BaseDirectory, "Content", "Models"));
             _contentLoader.LoadAll();
@@ -100,6 +105,14 @@ namespace FaithburnEngine.CoreGame
 
             _worldGrid = new WorldGrid(_contentLoader);
             _spriteBatch = new SpriteBatch(GraphicsDevice);
+
+            // Hotbar renderer depends on SpriteBatch, Content and UI assets
+            Texture2D slotBg = null;
+            SpriteFont uiFont = null;
+            try { slotBg = Content.Load<Texture2D>("UI/slot_bg"); } catch { slotBg = null; }
+            try { uiFont = Content.Load<SpriteFont>("Fonts/UiFont"); } catch { uiFont = null; }
+            _hotbarRenderer = new HotbarRenderer(_spriteBatch, _contentLoader, slotBg, uiFont, GraphicsDevice);
+            _lastScrollValue = Mouse.GetState().ScrollWheelValue;
 
             // Initialize block atlas and load sprite sheets
             var blockAtlas = new BlockAtlas(32, 4);
@@ -239,15 +252,66 @@ namespace FaithburnEngine.CoreGame
         protected override void Update(GameTime gameTime)
         {
             var k = Keyboard.GetState();
+            var m = Mouse.GetState();
 
-            // optional: zoom with + / - keys
-            if (k.IsKeyDown(Keys.OemPlus) || k.IsKeyDown(Keys.Add)) _camera.Zoom += 0.5f * (float)gameTime.ElapsedGameTime.TotalSeconds;
-            if (k.IsKeyDown(Keys.OemMinus) || k.IsKeyDown(Keys.Subtract)) _camera.Zoom -= 0.5f * (float)gameTime.ElapsedGameTime.TotalSeconds;
+            // HOTBAR INPUT
+            if (_player != null)
+            {
+                var inv = _player.Inventory;
+                int total = Math.Min(HotbarDisplayCount, inv.Slots.Length);
 
-            float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
+                // Number keys 1..9,0 -> indices 0..9
+                for (int i = 0; i < total; i++)
+                {
+                    Keys key = i == 9 ? Keys.D0 : (Keys)((int)Keys.D1 + i);
+                    if (k.IsKeyDown(key))
+                    {
+                        _player.HotbarIndex = i;
+                        break;
+                    }
+                }
 
-            // ALL gameplay logic flows through systems (Tenet #4 - ECS First).
-            _systems.Update(dt);
+                // Mouse wheel
+                int scroll = m.ScrollWheelValue;
+                if (scroll != _lastScrollValue)
+                {
+                    int delta = Math.Sign(scroll - _lastScrollValue);
+                    _player.HotbarIndex = (_player.HotbarIndex - delta + total) % total;
+                    _lastScrollValue = scroll;
+                }
+
+                // Mouse click selection (use same layout math as renderer)
+                if (m.LeftButton == ButtonState.Pressed)
+                {
+                    int screenW = GraphicsDevice.Viewport.Width;
+                    int y = GraphicsDevice.Viewport.Height - HotbarSlotSize - 10;
+                    int width = total * HotbarSlotSize + (total - 1) * HotbarPadding;
+                    int startX = (screenW - width) / 2;
+                    var mx = m.X;
+                    var my = m.Y;
+                    if (my >= y && my <= y + HotbarSlotSize)
+                    {
+                        int rel = mx - startX;
+                        if (rel >= 0)
+                        {
+                            int idx = rel / (HotbarSlotSize + HotbarPadding);
+                            if (idx >= 0 && idx < total)
+                            {
+                                _player.HotbarIndex = idx;
+                            }
+                        }
+                    }
+                }
+            }
+
+             // optional: zoom with + / - keys
+             if (k.IsKeyDown(Keys.OemPlus) || k.IsKeyDown(Keys.Add)) _camera.Zoom += 0.5f * (float)gameTime.ElapsedGameTime.TotalSeconds;
+             if (k.IsKeyDown(Keys.OemMinus) || k.IsKeyDown(Keys.Subtract)) _camera.Zoom -= 0.5f * (float)gameTime.ElapsedGameTime.TotalSeconds;
+
+             float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
+
+             // ALL gameplay logic flows through systems (Tenet #4 - ECS First).
+             _systems.Update(dt);
 
             // After systems update, make the camera follow the player
             if (_playerEntity.IsAlive)
@@ -266,15 +330,16 @@ namespace FaithburnEngine.CoreGame
 
             GraphicsDevice.Clear(Color.CornflowerBlue);
 
-            // RENDERING LAYER ORDER (Tenet #2 - Terraria-like):
-            // 1. Tiles (background)
-            // 2. Entities (foreground)
-            // 3. UI (top)
-            // This order creates depth perception and ensures UI is readable.
             _spriteRenderer.Draw();
 
-            base.Draw(gameTime);
-        }
+            // Draw hotbar UI on top
+            if (_hotbarRenderer != null && _player != null)
+            {
+                _hotbarRenderer.Draw(_player.Inventory, Math.Clamp(_player.HotbarIndex, 0, HotbarDisplayCount - 1), HotbarSlotSize, HotbarDisplayCount, HotbarPadding);
+            }
+
+             base.Draw(gameTime);
+         }
 
         protected override void UnloadContent()
         {

@@ -14,9 +14,7 @@ namespace FaithburnEngine.Systems
         private readonly WorldGrid? _worldGrid;
         private KeyboardState _prevKb;
 
-        // Jump settings
         private const float JumpVelocity = 960f;
-
         // Coyote time allows jumping shortly after leaving ledge
         private const float CoyoteTime = 0.12f; // seconds
 
@@ -44,7 +42,13 @@ namespace FaithburnEngine.Systems
             ref var vel = ref entity.Get<Velocity>();
             ref var pos = ref entity.Get<Position>();
 
-            vel.Value = new Vector2(dir.X * _speed, vel.Value.Y);
+            float targetSpeed = dir.X * _speed;
+            if (!entity.Has<MoveIntent>()) entity.Set(new MoveIntent { TargetSpeedX = targetSpeed });
+            else { ref var mi = ref entity.Get<MoveIntent>(); mi.TargetSpeedX = targetSpeed; }
+
+            // Update InputState for other systems
+            if (!entity.Has<InputState>()) entity.Set(new InputState { JumpHeld = kb.IsKeyDown(Keys.Space) });
+            else { ref var isState = ref entity.Get<InputState>(); isState.JumpHeld = kb.IsKeyDown(Keys.Space); }
 
             // Flip sprite horizontally based on movement direction
             if (entity.Has<Sprite>())
