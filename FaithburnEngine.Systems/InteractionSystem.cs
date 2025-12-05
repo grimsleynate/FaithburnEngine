@@ -87,6 +87,9 @@ namespace FaithburnEngine.Systems
             var playerTile = _world.WorldToTileCoord(feet);
 
             // Chebyshev distance
+            // WHY Chebyshev distance for click radius:
+            // In tile-based worlds, we consider the maximum of dx/dy so diagonal tiles are within
+            // the same effective radius. This matches intuitive mining reach.
             int dx = Math.Abs(tileCoord.X - playerTile.X);
             int dy = Math.Abs(tileCoord.Y - playerTile.Y);
             int cheb = Math.Max(dx, dy);
@@ -111,6 +114,9 @@ namespace FaithburnEngine.Systems
             if (itemDef.ToolKind != FaithburnEngine.Content.Models.Enums.ToolType.Pickaxe) return;
 
             // Compute time to break
+            // WHY harvest rule and time:
+            // Tools have `HarvestPower`; blocks have `Hardness`. The time is Hardness / Power
+            // clamped to a sane minimum. This mirrors Terraria-like feel and allows per-item tuning.
             float harvestPower = Math.Max(0.0001f, itemDef.Stats.HarvestPower);
             float timeToBreak = block.Hardness / (harvestPower * Constants.Mining.GlobalHarvestSpeedModifier);
             timeToBreak = Math.Max(Constants.Mining.MinTimeToBreak, timeToBreak);
@@ -129,6 +135,9 @@ namespace FaithburnEngine.Systems
                 if (!mi.IsActive)
                 {
                     double now = Environment.TickCount / 1000.0;
+                    // WHY retention:
+                    // If the player stops mining briefly and restarts within a short window,
+                    // keep their progress. It reduces frustration from minor input stalls.
                     if (now - mi.LastStoppedAt <= Constants.Mining.ProgressRetentionSeconds)
                     {
                         // resume
@@ -151,6 +160,9 @@ namespace FaithburnEngine.Systems
                 return;
             }
 
+            // WHY TryHarvest reuse:
+            // The harvesting logic (tool validation + yields) is centralized in TryHarvest so both
+            // direct mining and any future scripted/automated harvests share the same behavior.
             // If mining a different tile, start mining new tile (allow double-mining)
             mi.Tile = tileCoord;
             mi.TimeLeft = timeToBreak;
@@ -166,13 +178,15 @@ namespace FaithburnEngine.Systems
             var rule = _content.HarvestRules.FirstOrDefault(r => r.TargetBlockId == block.Id);
             if (rule == null) return;
 
-            // Check tool requirement
+            // WHY tool validation:
+            // Enforces intended gameplay: only certain tools can harvest certain blocks, with
+            // optional power-based overrides to allow progression.
             var toolOk = CheckToolRequirement(toolDef, rule);
             if (!toolOk) return;
 
             // Remove block and give yields using existing logic
             _world.SetBlock(tileCoord, "air");
-            var rng = new Random(); // consider injecting RNG for determinism in tests
+            var rng = new Random(); // WHY: inject RNG for determinism in tests in the future
             foreach (var y in rule.Yields)
             {
                 if (rng.NextDouble() <= y.Chance)

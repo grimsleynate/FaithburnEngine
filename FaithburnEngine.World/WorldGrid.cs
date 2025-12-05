@@ -8,7 +8,10 @@ namespace FaithburnEngine.World
     /// <summary>
     /// Simple tile grid backed by dictionary.
     /// Stores block IDs and their sprite variants for smart tiling.
-    /// Replace with chunked array later (Tenet #3 - Efficient).
+    /// WHY dictionary-backed prototype:
+    /// - Fast iteration while worldgen is in flux (no fixed bounds required).
+    /// - Easy to diff/patch tiles without allocating large arrays.
+    /// - Will be replaced with chunked arrays for performance in production (Tenet #3 - Efficient).
     /// </summary>
     public sealed class WorldGrid
     {
@@ -16,6 +19,10 @@ namespace FaithburnEngine.World
         private readonly Dictionary<Point, TileVariant> _variants = new();
         private readonly ContentLoader _content;
         public int TileSize { get; } = 32; // pixels per tile
+        // WHY 32px tiles:
+        // - Matches common 2D platformer standards and content pipeline.
+        // - Reasonable for memory/perf; easy atlas packing.
+        // - Can be parameterized later if modders want different scales.
 
         public WorldGrid(ContentLoader content)
         {

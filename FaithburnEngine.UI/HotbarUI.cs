@@ -42,6 +42,8 @@ namespace FaithburnEngine.UI
             var kb = Keyboard.GetState();
 
             // Map 1..9,0 to 0..9
+            // WHY: Matches common action-bar conventions (Terraria-like), provides muscle-memory
+            // support for quick item switching without UI focus.
             for (int i = 0; i < slotCount && i < 10; i++)
             {
                 Keys key = i == 9 ? Keys.D0 : (Keys)((int)Keys.D1 + i);
@@ -65,6 +67,8 @@ namespace FaithburnEngine.UI
             if (scroll != lastScrollValue)
             {
                 int delta = Math.Sign(scroll - lastScrollValue);
+                // WHY: Mouse wheel cycles selection relative to current index to minimize cursor travel,
+                // enabling consistent hotbar use while aiming or moving.
                 selectedIndex = (selectedIndex - delta + slotCount) % slotCount;
                 lastScrollValue = scroll;
             }

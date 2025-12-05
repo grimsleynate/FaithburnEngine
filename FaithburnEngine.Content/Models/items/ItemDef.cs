@@ -1,5 +1,6 @@
 ﻿using System.Text.Json.Serialization;
 using FaithburnEngine.Content.Models.Enums;
+using System.Collections.Generic;
 
 namespace FaithburnEngine.Content.Models
 {
@@ -59,5 +60,11 @@ namespace FaithburnEngine.Content.Models
         public float? HitboxLifetime { get; set; }
         // Optional damage multiplier applied to item base damage
         public float? HitboxDamageMultiplier { get; set; }
+
+        /// <summary>
+        /// Extensibility hook for mods and content packs. Allows arbitrary metadata
+        /// (e.g., lore tags, elemental types, custom behaviors) without schema changes.
+        /// </summary>
+        public Dictionary<string, object>? CustomProperties { get; set; }
     }
 }

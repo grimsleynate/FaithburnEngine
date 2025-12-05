@@ -17,6 +17,9 @@ namespace FaithburnEngine.Content
         public IReadOnlyList<HarvestRule> HarvestRules { get; private set; } = new List<HarvestRule>();
         public Dictionary<string, EnemyAISettings> EnemyAI { get; private set; } = new();
 
+        // WHY Immutable: publish content lookups via immutable dictionaries to allow
+        // concurrent reads safely across systems without locks. Content is loaded at boot
+        // and treated as read-only data thereafter.
         public ImmutableDictionary<string, ItemDef> ItemsById { get; private set; }
             = ImmutableDictionary<string, ItemDef>.Empty;
         public ImmutableDictionary<string, BlockDef> BlocksById { get; private set; }
@@ -35,6 +38,10 @@ namespace FaithburnEngine.Content
             Debug.WriteLine($"ContentLoader.LoadAll root={_contentRoot}");
             TryLogDirectory(_contentRoot);
 
+            // WHY JSON-driven loaders:
+            // - Designers can author content without recompilation.
+            // - Mod-friendly: content packs can drop new JSON into known folders.
+            // - Versionable: schemas evolve while code stays stable.
             Items = LoadJsonList<ItemDef>("Items/Items.json");
             Blocks = LoadJsonList<BlockDef>("Blocks/Blocks.json");
             HarvestRules = LoadJsonList<HarvestRule>("Harvest_Rules/Harvest_Rules.json");

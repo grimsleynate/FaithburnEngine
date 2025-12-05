@@ -16,10 +16,12 @@ namespace FaithburnEngine.Core
         public int HotbarIndex { get; set; }
 
         /// <summary>
-        /// World position in pixels. Stored in PlayerContext for convenience during prototyping.
-        /// 
-        /// Tenet #4 (ECS): Will become a Position component { x: float; y: float; } used by all
-        /// entities (enemies, NPCs, projectiles). Enables spatial queries: "All entities in chunk (5,10)?"
+        /// World position in pixels (feet origin). We use FEET as origin so sprite rendering with
+        /// bottom-center origins aligns naturally to ground contact and collision.
+        /// Stored in PlayerContext for convenience during prototyping.
+        ///
+        /// Tenet #4 (ECS): Will become a `Position` component { x: float; y: float; } used by all
+        /// entities (enemies, NPCs, projectiles). Enables spatial queries: "All entities in chunk (5,10)?".
         /// </summary>
         public Vector2 Position { get; set; }
 
@@ -27,7 +29,7 @@ namespace FaithburnEngine.Core
         /// Camera controlling viewport rendering. DECOUPLED from Position intentionally.
         /// 
         /// WHY DECOUPLED:
-        /// Enables smooth camera lag, zoom, screen shake, split-screen—all without affecting physics.
+        /// Enables smooth camera lag, zoom, screen shake, split-screen without affecting physics.
         /// 
         /// Tenet #3 (Efficient): Camera updates independently of entity position updates. Can use
         /// different interpolation/damping without impacting collision/physics performance.

@@ -9,10 +9,15 @@ using System;
 namespace FaithburnEngine.Systems
 {
     /// <summary>
-    /// Kinematic character controller implementing axis-separated movement, velocity projection
-    /// for sliding, coyote time, jump buffering, and variable jump height.
-    /// - Axis separated: horizontal then vertical resolution to avoid corner snagging.
-    /// - Velocity projection: remove component into contact normal on collision.
+    /// Kinematic character controller.
+    /// WHY this approach:
+    /// - Axis-separated resolution (move X then Y) avoids corner snagging on tilemaps.
+    /// - Deterministic and tunable: no rigidbody solver variability; designers control feel via constants.
+    /// - Game-feel layers: coyote time, jump buffering, variable jump height are easier to implement.
+    /// - Collision model: swept AABB per axis against solid tiles; project velocity along collision normal
+    ///   (axis-aligned tiles -> zero the component in the normal direction).
+    /// - Step-up rationale: When encountering a single-tile rise, probe one tile up and lerp to target
+    ///   for smooth stair/bump traversal without special stair tiles.
     /// </summary>
     public sealed class MovementSystem : AEntitySetSystem<float>
     {
