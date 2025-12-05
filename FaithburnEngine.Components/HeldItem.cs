@@ -19,5 +19,7 @@ namespace FaithburnEngine.Components
         // Timing
         public float Duration;
         public float TimeLeft;
+        // Whether we've spawned a hitbox for the current swing
+        public bool HitboxSpawned;
     }
 }

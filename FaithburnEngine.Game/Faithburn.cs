@@ -44,6 +44,9 @@ namespace FaithburnEngine.CoreGame
         // Previous mouse state for edge detection
         private MouseState _prevMouseState;
 
+        // Cached reference to ActiveHitboxSystem
+        private ActiveHitboxSystem _hitboxSystem;
+
         public Faithburn()
         {
             _graphics = new GraphicsDeviceManager(this);
@@ -76,20 +79,7 @@ namespace FaithburnEngine.CoreGame
             _camera.UpdateOrigin(GraphicsDevice.Viewport);
             _camera.Zoom = desiredZoom;
 
-            // Order matters for game feel:
-            // 1. Input (read player input, buffer jump intent)
-            // 2. Movement (apply velocity, gravity, resolve collisions, apply buffered jump)
-            // 3. Interaction (sequential) ? Player can harvest blocks
-            // 4. Inventory (sequential) ? UI shows changes
-            // This creates the feel of a responsive, snappy game (like Terraria).
-            // Modders extend this by creating new systems and injecting them here.
-            _systems = new SequentialSystem<float>(
-                // Run Input and Movement sequentially to avoid races on grounded state / jump intent
-                new InputSystem(_world, worldGrid: null, speed: 180f),
-                new MovementSystem(_world, worldGrid: null),
-                new InteractionSystem(_contentLoader, _inventorySystem, _worldGrid, _camera),
-                new InventorySystem(_contentLoader, _world)
-            );
+            // Systems will be initialized in LoadContent once dependencies (content, worldGrid) are ready.
 
             base.Initialize();
         }
@@ -131,7 +121,8 @@ namespace FaithburnEngine.CoreGame
             generator.FillWorld(_worldGrid);
 
             _inventorySystem = new InventorySystem(_contentLoader, _world);
-            _interactionSystem = new InteractionSystem(_contentLoader, _inventorySystem, _worldGrid, _camera);
+            _interactionSystem = new InteractionSystem(_contentLoader, _inventorySystem, _worldGrid, _camera, _player);
+            _hitboxSystem = new ActiveHitboxSystem(_world, _worldGrid, _contentLoader);
             _spriteRenderer = new SpriteRenderer(_world, _spriteBatch, blockAtlas, _worldGrid, _camera);
 
             // Create player entity and set initial position and sprite
@@ -257,7 +248,8 @@ namespace FaithburnEngine.CoreGame
                 // Ensure Input runs before Movement so buffered jumps are processed deterministically
                 new InputSystem(_world, _worldGrid, speed: 360f),
                 new MovementSystem(_world, _worldGrid),
-                new InteractionSystem(_contentLoader, _inventorySystem, _worldGrid, _camera),
+                _hitboxSystem,
+                new InteractionSystem(_contentLoader, _inventorySystem, _worldGrid, _camera, _player),
                 new InventorySystem(_contentLoader, _world));
         }
 
@@ -360,38 +352,71 @@ namespace FaithburnEngine.CoreGame
             // Update held-item animation (swing) if present
             if (_playerEntity.IsAlive && _playerEntity.Has<FaithburnEngine.Components.HeldItem>())
             {
-                ref var hi = ref _playerEntity.Get<FaithburnEngine.Components.HeldItem>();
-                hi.TimeLeft -= dt;
-                if (hi.TimeLeft <= 0f)
-                {
-                    // Swing finished; remove component
-                    _playerEntity.Remove<FaithburnEngine.Components.HeldItem>();
+                 ref var hi = ref _playerEntity.Get<FaithburnEngine.Components.HeldItem>();
+                 hi.TimeLeft -= dt;
+                 if (hi.TimeLeft <= 0f)
+                 {
+                     // Swing finished; remove component
+                     _playerEntity.Remove<FaithburnEngine.Components.HeldItem>();
 
-                    // If mouse is still held, and the active hotbar slot still has the same pickaxe, start another swing
-                    if (m.LeftButton == ButtonState.Pressed)
-                    {
-                        int hotbarIndex = Math.Clamp(_player.HotbarIndex, 0, HotbarConstants.DisplayCount - 1);
-                        var slot = _player.Inventory.Slots[hotbarIndex];
-                        if (!slot.IsEmpty && slot.ItemId == "proto_pickaxe")
-                        {
-                            var pickaxeItem = _contentLoader.GetItem("proto_pickaxe");
-                            if (pickaxeItem != null && !string.IsNullOrEmpty(pickaxeItem.SpriteRef))
-                            {
-                                var held2 = CreateHeldItem(pickaxeItem);
-                                _playerEntity.Set(held2);
+                     // If mouse is still held, and the active hotbar slot still has the same pickaxe, start another swing
+                     if (m.LeftButton == ButtonState.Pressed)
+                     {
+                         int hotbarIndex = Math.Clamp(_player.HotbarIndex, 0, HotbarConstants.DisplayCount - 1);
+                         var slot = _player.Inventory.Slots[hotbarIndex];
+                         if (!slot.IsEmpty && slot.ItemId == "proto_pickaxe")
+                         {
+                             var pickaxeItem = _contentLoader.GetItem("proto_pickaxe");
+                             if (pickaxeItem != null && !string.IsNullOrEmpty(pickaxeItem.SpriteRef))
+                             {
+                                 var held2 = CreateHeldItem(pickaxeItem);
+                                 _playerEntity.Set(held2);
                             }
-                        }
-                    }
-                }
-                else
-                {
-                    float t = 1f - (hi.TimeLeft / Math.Max(0.0001f, hi.Duration)); // 0..1 progress
-                    // simple swing curve: sine from -0.9 to +0.9 radians
-                    float swing = (float)Math.Sin(t * Math.PI) * 0.9f;
-                    hi.Rotation = swing;
-                    _playerEntity.Set(hi);
-                }
-            }
+                         }
+                     }
+                 }
+                 else
+                 {
+                     float t = 1f - (hi.TimeLeft / Math.Max(0.0001f, hi.Duration)); // 0..1 progress
+                     // simple swing curve: sine from -0.9 to +0.9 radians
+                     float swing = (float)Math.Sin(t * Math.PI) * 0.9f;
+                     hi.Rotation = swing;
+                     _playerEntity.Set(hi);
+                     
+                     // Spawn hitbox at swing peak if not already spawned and item defines hitbox
+                     if (!hi.HitboxSpawned && t >= 0.5f)
+                     {
+                         // Look up item def
+                         var itemDef = _contentLoader.GetItem(hi.ItemId);
+                         if (itemDef != null && itemDef.HitboxWidth.HasValue && itemDef.HitboxHeight.HasValue)
+                         {
+                             // Compute hitbox world rect based on pivot world position (player pos + hi.Offset)
+                             var pivotWorld = _playerEntity.Get<FaithburnEngine.Components.Position>().Value + hi.Offset;
+                             
+                             int hw = itemDef.HitboxWidth.Value;
+                             int hh = itemDef.HitboxHeight.Value;
+                             int ox = itemDef.HitboxOffsetX ?? 0;
+                             int oy = itemDef.HitboxOffsetY ?? 0;
+                             
+                             // If player is flipped, mirror offset.x
+                             bool flipped = _playerEntity.Has<FaithburnEngine.Components.Sprite>() && 
+                                            _playerEntity.Get<FaithburnEngine.Components.Sprite>().Effects.HasFlag(Microsoft.Xna.Framework.Graphics.SpriteEffects.FlipHorizontally);
+                             int finalOx = flipped ? -ox - hw : ox;
+                             
+                             var rect = new Microsoft.Xna.Framework.Rectangle(
+                                 (int)(pivotWorld.X + finalOx),
+                                 (int)(pivotWorld.Y + oy - hh), // convert to top-left y
+                                 hw,
+                                 hh);
+                             
+                             // Spawn pooled hitbox using cached system
+                             _hitboxSystem.SpawnHitbox(rect, itemDef.HitboxLifetime ?? 0.1f, hi.ItemId, _playerEntity);
+                             hi.HitboxSpawned = true;
+                             _playerEntity.Set(hi);
+                         }
+                     }
+                 }
+             }
 
             _prevMouseState = m;
 

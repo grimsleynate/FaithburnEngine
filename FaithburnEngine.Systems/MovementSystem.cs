@@ -3,6 +3,7 @@ using DefaultEcs.System;
 using FaithburnEngine.Components;
 using Microsoft.Xna.Framework;
 using FaithburnEngine.World;
+using FaithburnEngine.Core;
 using System;
 
 namespace FaithburnEngine.Systems
@@ -257,7 +258,9 @@ namespace FaithburnEngine.Systems
                                         // Otherwise, normal horizontal collision
                                         float tileLeft = tx * tileSize;
                                         resolvedX = tileLeft - halfW - colOffset.X;
+                                        // Horizontal collision: zero horizontal velocity.
                                         vel.Value = new Vector2(0f, vel.Value.Y);
+                                        // normal horizontal collision, no airborne nudge
                                         collidedX = true;
                                         break;
                                     }

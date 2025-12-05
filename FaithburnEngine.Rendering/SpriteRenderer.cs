@@ -164,11 +164,92 @@ namespace FaithburnEngine.Rendering
 
                 if (sprite.Texture == null) continue;
 
-                var origin = sprite.Origin;
+                var tex = sprite.Texture;
                 var tint = sprite.Tint == default ? Color.White : sprite.Tint;
                 var scale = sprite.Scale <= 0f ? 1f : sprite.Scale;
                 var effects = sprite.Effects;
-                _spriteBatch.Draw(sprite.Texture, pos.Value, null, tint, 0f, origin, scale, effects, 0f);
+
+                // Decide whether this texture should be treated as a column spritesheet.
+                // Artists supply most character sheets as columns with left/top padding and fixed stride.
+                bool looksLikeColumnSheet = tex.Height >= Constants.Spritesheet.DefaultFrameStrideY && tex.Width >= Constants.Spritesheet.DefaultLeftPadding + 1;
+                if (looksLikeColumnSheet)
+                {
+                    // Derive frame metrics using defaults but try several candidate strides so sheets with
+                    // different bottom padding (or none) are still recognized (e.g., 80x2352 uses stride 112).
+                    int frameWidth = Math.Max(1, tex.Width - Constants.Spritesheet.DefaultLeftPadding);
+                    int frameHeight = Constants.Spritesheet.DefaultFrameHeight;
+
+                    int[] strideCandidates = new[] {
+                        Constants.Spritesheet.DefaultFrameStrideY, // default (116)
+                        Constants.Spritesheet.DefaultTopPadding + Constants.Spritesheet.DefaultFrameHeight, // top + frame (112)
+                        Constants.Spritesheet.DefaultFrameHeight + Constants.Spritesheet.DefaultBottomPadding, // frame + bottom (100)
+                        Constants.Spritesheet.DefaultFrameHeight // frame only (96)
+                    };
+
+                    int strideY = tex.Height; // fallback: single-frame entire texture
+                    int frameCount = 1;
+                    foreach (var cand in strideCandidates)
+                    {
+                        if (cand <= 0) continue;
+                        if (tex.Height % cand == 0)
+                        {
+                            strideY = cand;
+                            frameCount = tex.Height / strideY;
+                            break;
+                        }
+                    }
+
+                    // Ensure at least 1
+                    frameCount = Math.Max(1, frameCount);
+
+                    // Determine which frame to draw: idle -> frame 0; walking -> alternate between frames 1 and 2
+                    int frameIndex = 0;
+                    bool walking = false;
+                    if (e.Has<FaithburnEngine.Components.Velocity>())
+                    {
+                        var vel = e.Get<FaithburnEngine.Components.Velocity>().Value;
+                        walking = Math.Abs(vel.X) > Constants.Spritesheet.WalkVelocityThreshold;
+                    }
+
+                    if (walking && frameCount > 1)
+                    {
+                        double t = Environment.TickCount / 1000.0;
+                        int phase = (int)(t / Constants.Spritesheet.WalkFrameInterval) % 2;
+                        frameIndex = 1 + phase;
+                        if (frameIndex >= frameCount) frameIndex = frameCount - 1;
+                    }
+                    else
+                    {
+                        frameIndex = 0;
+                    }
+
+                    // Source rectangle for this frame (column layout). Include bottom padding area so
+                    // the drawn region contains the sprite's feet area and padding, preventing a visible gap.
+                    int srcX = Constants.Spritesheet.DefaultLeftPadding;
+                    int srcY = Constants.Spritesheet.DefaultTopPadding + frameIndex * strideY;
+                    int srcHeight = frameHeight + Math.Max(0, strideY - (Constants.Spritesheet.DefaultTopPadding + Constants.Spritesheet.DefaultFrameHeight));
+                    // Clamp srcHeight to remaining texture height
+                    if (srcY + srcHeight > tex.Height) srcHeight = Math.Max(0, tex.Height - srcY);
+                    var srcRect = new Rectangle(srcX, srcY, frameWidth, srcHeight);
+
+                    // Compute bottom padding present in the sheet for this stride candidate
+                    int bottomPaddingUsed = Math.Max(0, strideY - (Constants.Spritesheet.DefaultTopPadding + Constants.Spritesheet.DefaultFrameHeight));
+
+                    // Origin relative to source rect (bottom-center of frame). Include bottom padding so
+                    // the sprite's feet align to the entity's feet world position (removes 4px gap).
+                    var originForDraw = new Vector2(frameWidth * 0.5f, frameHeight + bottomPaddingUsed);
+
+                    // Draw frame so that origin maps to entity position.
+                    // Apply small downward adjustment equal to DefaultBottomPadding to compensate for common artist padding
+                    var drawPos = pos.Value + new Vector2(0f, Constants.Spritesheet.DefaultBottomPadding);
+                    _spriteBatch.Draw(tex, drawPos, srcRect, tint, 0f, originForDraw, scale, effects, 0f);
+                }
+                else
+                {
+                    // Fallback: single texture draw (legacy behavior)
+                    var origin = sprite.Origin;
+                    _spriteBatch.Draw(sprite.Texture, pos.Value, null, tint, 0f, origin, scale, effects, 0f);
+                }
 
                 // If entity is holding an item, draw it on top of the entity
                 if (e.Has<HeldItem>())
@@ -176,7 +257,7 @@ namespace FaithburnEngine.Rendering
                     ref var hi = ref e.Get<HeldItem>();
                     if (hi.Texture != null)
                     {
-                        var tex = hi.Texture;
+                        var heldTex = hi.Texture;
 
                         // Determine facing from entity sprite
                         float facing = 1f;
@@ -230,7 +311,7 @@ namespace FaithburnEngine.Rendering
                         var originForDraw = pivot;
                         if (heldEffects.HasFlag(SpriteEffects.FlipHorizontally))
                         {
-                            originForDraw = new Vector2(tex.Width - pivot.X, pivot.Y);
+                            originForDraw = new Vector2(heldTex.Width - pivot.X, pivot.Y);
                         }
 
                         // Determine rotation accounting for flip so swing direction matches facing
@@ -238,7 +319,7 @@ namespace FaithburnEngine.Rendering
                         if (heldEffects.HasFlag(SpriteEffects.FlipHorizontally)) rot = -rot;
 
                         // Draw texture so that pivot (originForDraw) maps to pivotWorldPos
-                        _spriteBatch.Draw(tex, pivotWorldPos, null, Color.White, rot, originForDraw, hi.Scale, heldEffects, 0f);
+                        _spriteBatch.Draw(heldTex, pivotWorldPos, null, Color.White, rot, originForDraw, hi.Scale, heldEffects, 0f);
                      }
                  }
             }
