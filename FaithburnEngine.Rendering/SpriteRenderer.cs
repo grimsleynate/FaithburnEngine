@@ -18,7 +18,11 @@ namespace FaithburnEngine.Rendering
         private readonly WorldGrid _worldGrid;
         private readonly int _tileSize;
         private readonly Camera2D _camera;
-        public SpriteRenderer(DefaultEcs.World world, SpriteBatch spriteBatch, BlockAtlas blockAtlas, WorldGrid worldGrid, Camera2D camera, int tileSize = 32)
+        private readonly System.Func<string, FaithburnEngine.Content.Models.ItemDef?>? _itemLookup;
+
+        // itemLookup is an optional function that maps an ItemId to its ItemDef. If not provided,
+        // renderer will fall back to simple heuristics (previous hardcoded behavior).
+        public SpriteRenderer(DefaultEcs.World world, SpriteBatch spriteBatch, BlockAtlas blockAtlas, WorldGrid worldGrid, Camera2D camera, System.Func<string, FaithburnEngine.Content.Models.ItemDef?>? itemLookup = null, int tileSize = 32)
         {
             _world = world;
             _spriteBatch = spriteBatch;
@@ -26,6 +30,7 @@ namespace FaithburnEngine.Rendering
             _worldGrid = worldGrid;
             _tileSize = tileSize;
             _camera = camera;
+            _itemLookup = itemLookup;
         }
 
         /// <summary>
@@ -189,37 +194,53 @@ namespace FaithburnEngine.Rendering
                         // Compute world position where the pivot should be placed: entity position + Offset
                         var pivotWorldPos = pos.Value + hi.Offset;
 
-                        // Use entity sprite's effects for held item flip so it matches orientation
-                        // Certain item art may have opposite native facing (e.g. proto_pickaxe). For those
-                        // we'll invert the horizontal flip so the visual faces the same direction as the player.
+                        // Determine flip behavior from ItemDef if available, otherwise follow existing logic.
                         SpriteEffects heldEffects = SpriteEffects.None;
+                        FaithburnEngine.Content.Models.ItemDef? itemDef = null;
+                        if (!string.IsNullOrEmpty(hi.ItemId) && _itemLookup != null)
+                        {
+                            try { itemDef = _itemLookup(hi.ItemId); } catch { itemDef = null; }
+                        }
+
                         if (e.Has<Sprite>())
                         {
                             var baseEffects = e.Get<Sprite>().Effects;
-                            // Default: follow entity sprite effects
                             heldEffects = baseEffects;
-                            // If this item is known to have opposite native facing, toggle the horizontal flip
-                            if (!string.IsNullOrEmpty(hi.ItemId) && hi.ItemId == "proto_pickaxe")
+                            if (itemDef != null)
                             {
-                                heldEffects = baseEffects ^ SpriteEffects.FlipHorizontally;
+                                if (itemDef.FlipToFacePlayer)
+                                    heldEffects = baseEffects ^ SpriteEffects.FlipHorizontally;
+                                // else keep baseEffects
+                            }
+                            else
+                            {
+                                // Legacy fallback: only special-case proto_pickaxe
+                                if (!string.IsNullOrEmpty(hi.ItemId) && hi.ItemId == "proto_pickaxe")
+                                    heldEffects = baseEffects ^ SpriteEffects.FlipHorizontally;
                             }
                         }
 
-                        float rot = hi.Rotation;
-                        // Flip rotation sign when flipped horizontally so swing direction matches facing
-                        if (heldEffects.HasFlag(SpriteEffects.FlipHorizontally)) rot = -rot;
+                        // Compute originForDraw using pivot override from ItemDef if provided; otherwise use HeldItem.Pivot
+                        pivot = hi.Pivot;
+                        if (itemDef != null && itemDef.PivotX.HasValue && itemDef.PivotY.HasValue)
+                        {
+                            pivot = new Vector2(itemDef.PivotX.Value, itemDef.PivotY.Value);
+                        }
 
-                        // If we're flipping horizontally, adjust pivot.x so it references the mirrored pixel
                         var originForDraw = pivot;
                         if (heldEffects.HasFlag(SpriteEffects.FlipHorizontally))
                         {
                             originForDraw = new Vector2(tex.Width - pivot.X, pivot.Y);
                         }
 
+                        // Determine rotation accounting for flip so swing direction matches facing
+                        float rot = hi.Rotation;
+                        if (heldEffects.HasFlag(SpriteEffects.FlipHorizontally)) rot = -rot;
+
                         // Draw texture so that pivot (originForDraw) maps to pivotWorldPos
                         _spriteBatch.Draw(tex, pivotWorldPos, null, Color.White, rot, originForDraw, hi.Scale, heldEffects, 0f);
-                    }
-                }
+                     }
+                 }
             }
         }
 

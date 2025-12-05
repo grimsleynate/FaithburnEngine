@@ -34,5 +34,18 @@ namespace FaithburnEngine.Content.Models
         public ItemStats Stats { get; set; } = new();
         //This item's sprite reference.
         public string? SpriteRef { get; set; }
+
+        // Visual metadata (optional)
+        // If true, flip the item's native artwork horizontally so it faces the same
+        // direction as the player. This avoids hardcoding item ids in renderer.
+        public bool FlipToFacePlayer { get; set; } = false;
+
+        // Optional pivot in texture pixels (if null, pivot will be computed as bottom-left)
+        public int? PivotX { get; set; }
+        public int? PivotY { get; set; }
+
+        // Optional hand offset override in pixels relative to player's feet (if null, computed)
+        public int? HandOffsetX { get; set; }
+        public int? HandOffsetY { get; set; }
     }
 }

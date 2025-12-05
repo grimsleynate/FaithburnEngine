@@ -1,3 +1,4 @@
+using DefaultEcs;
 using DefaultEcs.System;
 using DefaultEcs.Threading;
 using FaithburnEngine.Content;
@@ -10,7 +11,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
 using System.IO;
-using DefaultEcs;
+using FaithburnEngine.Content.Models;
 
 namespace FaithburnEngine.CoreGame
 {
@@ -349,56 +350,8 @@ namespace FaithburnEngine.CoreGame
                         var pickaxeItem = _contentLoader.GetItem("proto_pickaxe");
                         if (pickaxeItem != null && !string.IsNullOrEmpty(pickaxeItem.SpriteRef))
                         {
-                            // Load texture via TextureCache (synchronous)
-                            var tex = TextureCache.GetOrLoad(GraphicsDevice, pickaxeItem.SpriteRef);
-
-                            float duration = pickaxeItem.Stats?.Cooldown > 0 ? pickaxeItem.Stats.Cooldown : 0.3f;
-
-                            // Determine player's facing direction and sprite info
-                            float dir = 1f; // 1 = right, -1 = left
-                            Vector2 playerHalf = new Vector2(0f, 0f);
-                            if (_playerEntity.Has<FaithburnEngine.Components.Sprite>())
-                            {
-                                ref var ps = ref _playerEntity.Get<FaithburnEngine.Components.Sprite>();
-                                // Sprite.Effects: FlipHorizontally means artwork flipped -> player faces RIGHT (art faces left by default)
-                                dir = (ps.Effects == SpriteEffects.FlipHorizontally) ? 1f : -1f;
-
-                                float playerScale = ps.Scale <= 0f ? 1f : ps.Scale;
-                                float halfHeight = ps.Texture != null ? ps.Texture.Height * 0.5f * playerScale : 0f;
-                                float halfWidth = ps.Texture != null ? ps.Texture.Width * 0.5f * playerScale : 0f;
-
-                                float xEdge = dir * (halfWidth + 4f);
-                                // place a handful of pixels below halfway up the sprite so the hand is slightly lower
-                                playerHalf = new Vector2(xEdge, -halfHeight + 8f);
-                                // move 32 pixels closer to the player's body (toward center) and 32 pixels lower to ground
-                                playerHalf.X -= dir * 32f; // closer
-                                playerHalf.Y += 32f;      // lower
-                            }
-                            else if (_playerEntity.Has<FaithburnEngine.Components.Collider>())
-                            {
-                                ref var pc = ref _playerEntity.Get<FaithburnEngine.Components.Collider>();
-                                float halfHeight = pc.Size.Y * 0.5f;
-                                float halfWidth = pc.Size.X * 0.5f;
-                                float xEdge = dir * (halfWidth + 4f);
-                                playerHalf = new Vector2(xEdge, -halfHeight);
-                            }
-
-                            // Pivot at bottom-left of texture (handle end). Texture coordinate (0, texture.Height)
-                            var pivot = new Vector2(0f, tex.Height);
-
-                            var heldItem = new FaithburnEngine.Components.HeldItem
-                            {
-                                ItemId = pickaxeItem.Id,
-                                Texture = tex,
-                                Offset = playerHalf, // world offset where pivot should be placed
-                                Pivot = pivot,
-                                Scale = 1f,
-                                Rotation = 0f,
-                                Duration = duration,
-                                TimeLeft = duration
-                            };
-
-                            _playerEntity.Set(heldItem);
+                            var held = CreateHeldItem(pickaxeItem);
+                            _playerEntity.Set(held);
                         }
                     }
                 }
@@ -424,54 +377,8 @@ namespace FaithburnEngine.CoreGame
                             var pickaxeItem = _contentLoader.GetItem("proto_pickaxe");
                             if (pickaxeItem != null && !string.IsNullOrEmpty(pickaxeItem.SpriteRef))
                             {
-                                var tex = TextureCache.GetOrLoad(GraphicsDevice, pickaxeItem.SpriteRef);
-                                float duration = pickaxeItem.Stats?.Cooldown > 0 ? pickaxeItem.Stats.Cooldown : 0.3f;
-
-                                // Determine player's facing direction and sprite info
-                                float dir = 1f; // 1 = right, -1 = left
-                                Vector2 playerHalf = new Vector2(0f, 0f);
-                                if (_playerEntity.Has<FaithburnEngine.Components.Sprite>())
-                                {
-                                    ref var ps = ref _playerEntity.Get<FaithburnEngine.Components.Sprite>();
-                                    // Sprite.Effects: FlipHorizontally means artwork flipped -> player faces RIGHT (art faces left by default)
-                                    dir = (ps.Effects == SpriteEffects.FlipHorizontally) ? 1f : -1f;
-
-                                    float playerScale = ps.Scale <= 0f ? 1f : ps.Scale;
-                                    float halfHeight = ps.Texture != null ? ps.Texture.Height * 0.5f * playerScale : 0f;
-                                    float halfWidth = ps.Texture != null ? ps.Texture.Width * 0.5f * playerScale : 0f;
-
-                                    float xEdge = dir * (halfWidth + 4f);
-                                    // place a handful of pixels below halfway up the sprite so the hand is slightly lower
-                                    playerHalf = new Vector2(xEdge, -halfHeight + 8f);
-                                    // move 32 pixels closer to the player's body (toward center) and 32 pixels lower to ground
-                                    playerHalf.X -= dir * 32f; // closer
-                                    playerHalf.Y += 32f;      // lower
-                                }
-                                else if (_playerEntity.Has<FaithburnEngine.Components.Collider>())
-                                {
-                                    ref var pc = ref _playerEntity.Get<FaithburnEngine.Components.Collider>();
-                                    float halfHeight = pc.Size.Y * 0.5f;
-                                    float halfWidth = pc.Size.X * 0.5f;
-                                    float xEdge = dir * (halfWidth + 4f);
-                                    playerHalf = new Vector2(xEdge, -halfHeight);
-                                }
-
-                                // Pivot at bottom-left of texture (handle end). Texture coordinate (0, texture.Height)
-                                var pivot = new Vector2(0f, tex.Height);
-
-                                var newHeld = new FaithburnEngine.Components.HeldItem
-                                {
-                                    ItemId = pickaxeItem.Id,
-                                    Texture = tex,
-                                    Offset = playerHalf, // world offset where pivot should be placed
-                                    Pivot = pivot,
-                                    Scale = 1f,
-                                    Rotation = 0f,
-                                    Duration = duration,
-                                    TimeLeft = duration
-                                };
-
-                                _playerEntity.Set(newHeld);
+                                var held2 = CreateHeldItem(pickaxeItem);
+                                _playerEntity.Set(held2);
                             }
                         }
                     }
@@ -517,6 +424,56 @@ namespace FaithburnEngine.CoreGame
             _systems?.Dispose();
             _runner?.Dispose();
             base.UnloadContent();
+        }
+
+        // Centralized helper to create a HeldItem for an ItemDef using player's current sprite/collider
+        private FaithburnEngine.Components.HeldItem CreateHeldItem(ItemDef item)
+        {
+            var tex = TextureCache.GetOrLoad(GraphicsDevice, item.SpriteRef);
+            float duration = item.Stats?.Cooldown > 0 ? item.Stats.Cooldown : VisualConstants.DefaultHeldItemDuration;
+
+            int pW = 0, pH = 0;
+            float pScale = 1f;
+            SpriteEffects pEffects = SpriteEffects.None;
+            bool hasSprite = false;
+            Vector2 colliderSize = Vector2.Zero;
+
+            if (_playerEntity.Has<FaithburnEngine.Components.Sprite>())
+            {
+                ref var ps = ref _playerEntity.Get<FaithburnEngine.Components.Sprite>();
+                if (ps.Texture != null)
+                {
+                    hasSprite = true;
+                    pW = ps.Texture.Width;
+                    pH = ps.Texture.Height;
+                    pScale = ps.Scale <= 0f ? 1f : ps.Scale;
+                }
+                pEffects = ps.Effects;
+            }
+            if (_playerEntity.Has<FaithburnEngine.Components.Collider>())
+            {
+                ref var pc = ref _playerEntity.Get<FaithburnEngine.Components.Collider>();
+                colliderSize = pc.Size;
+            }
+
+            FaithburnEngine.Content.Models.ItemDef def = _contentLoader.GetItem(item.Id) ?? new FaithburnEngine.Content.Models.ItemDef();
+
+            var (offset, pivot) = FaithburnEngine.Core.HeldItemHelpers.ComputeVisuals(
+                pW, pH, pScale, pEffects, hasSprite, colliderSize,
+                def.PivotX, def.PivotY, def.HandOffsetX, def.HandOffsetY,
+                tex?.Height ?? 0);
+
+            return new FaithburnEngine.Components.HeldItem
+            {
+                ItemId = item.Id,
+                Texture = tex,
+                Offset = offset,
+                Pivot = pivot,
+                Scale = 1f,
+                Rotation = 0f,
+                Duration = duration,
+                TimeLeft = duration
+            };
         }
     }
 }
