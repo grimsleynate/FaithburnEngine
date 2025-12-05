@@ -19,15 +19,24 @@ namespace FaithburnEngine.Rendering
         // Optional rotation (radians)
         public float Rotation { get; set; } = 0f;
 
-        // Origin around which we zoom/rotate (usually screen center)
+        // Origin around which we zoom/rotate (screen point where Position maps to)
         public Vector2 Origin { get; set; } = Vector2.Zero;
+
+        // Anchor fractions (0..1) used when computing origin from viewport size
+        // HorizontalAnchor: fraction across the screen where the player will be positioned (0=left, 1=right)
+        public float HorizontalAnchor { get; set; } = 1f / 3f; // place player ~1/3 from left so 2/3 ahead
+        // VerticalAnchor: fraction down the screen where the player will be positioned (0=top, 1=bottom)
+        public float VerticalAnchor { get; set; } = 0.6f; // show more sky above player
 
         // Dead zone size in world pixels (box centered on camera). Small movements inside this box won't move the camera.
         public Vector2 DeadZoneSize { get; set; } = new Vector2(160f, 96f);
 
         // Lookahead multiplier applied to player velocity to offset camera in movement direction.
-        // The final lookahead offset = playerVelocity * LookaheadMultiplier (then clamped by screen fraction)
+        // The final lookahead offset = smoothedLookahead (which approaches targetVelocity * LookaheadMultiplier)
         public float LookaheadMultiplier { get; set; } = 0.18f; // reduced from 0.35 for less aggressive lookahead
+
+        // Lookahead smoothing: smaller => quicker to follow, larger => slower pan when direction changes
+        public float LookaheadSmoothTime { get; set; } = 0.08f;
 
         // Maximum fraction of the viewport to use for lookahead (2/3 = 0.666...)
         public float LookaheadViewportFraction { get; set; } = 2f / 3f;
@@ -35,20 +44,24 @@ namespace FaithburnEngine.Rendering
         // Smooth time used by SmoothDamp (approximate response time in seconds). Smaller => snappier.
         public float SmoothTime { get; set; } = 0.12f;
 
-        // Internal velocity state used by SmoothDamp
+        // Internal velocity state used by SmoothDamp for camera position
         private Vector2 _smoothVelocity = Vector2.Zero;
 
-        // Set origin to the current backbuffer center once you know viewport size
+        // Internal lookahead state and velocity used to smoothly change lookahead when direction changes
+        private Vector2 _smoothedLookahead = Vector2.Zero;
+        private Vector2 _lookaheadVelocity = Vector2.Zero;
+
+        // Set origin to the current backbuffer anchor once you know viewport size
         public void UpdateOrigin(Viewport viewport)
         {
-            Origin = new Vector2(viewport.Width * 0.5f, viewport.Height * 0.5f);
+            Origin = new Vector2(viewport.Width * HorizontalAnchor, viewport.Height * VerticalAnchor);
         }
 
         // Build the view matrix used by SpriteBatch.Begin(transformMatrix: ...)
         public Matrix GetViewMatrix()
         {
             // Corrected order: translate world by -Position (so Position becomes origin), then rotate/scale around Origin, then translate back by Origin.
-            // This ensures a world point at `Position` appears at screen `Origin` (center).
+            // This ensures a world point at `Position` appears at screen `Origin`.
             return
                 Matrix.CreateTranslation(new Vector3(-Position, 0f)) *
                 Matrix.CreateRotationZ(Rotation) *
@@ -57,7 +70,7 @@ namespace FaithburnEngine.Rendering
         }
 
         /// <summary>
-        /// Update the camera to follow a target using a deadzone, lookahead and smooth damping.
+        /// Update the camera to follow a target using a deadzone, smoothed lookahead and smooth damping.
         /// - targetPosition: world position to follow (center of target)
         /// - targetVelocity: world velocity of the target (pixels/sec)
         /// - dt: delta time in seconds
@@ -66,21 +79,24 @@ namespace FaithburnEngine.Rendering
         {
             if (dt <= 0f) return;
 
-            // Compute lookahead from velocity (scales with speed)
-            var lookahead = targetVelocity * LookaheadMultiplier;
+            // Compute desired lookahead from velocity (scales with speed)
+            var desiredLook = targetVelocity * LookaheadMultiplier;
 
             // Compute maximum allowed lookahead in world space based on viewport and zoom
-            // Origin is half-viewport in screen pixels; convert to world-space by dividing by zoom
+            // Origin is an anchor in screen pixels; convert to world-space by dividing with zoom
             var maxLook = (Origin / MathHelper.Max(0.0001f, Zoom)) * LookaheadViewportFraction;
 
-            // Clamp lookahead so it doesn't exceed a fraction of the screen in any axis
-            lookahead = new Vector2(
-                MathHelper.Clamp(lookahead.X, -maxLook.X, maxLook.X),
-                MathHelper.Clamp(lookahead.Y, -maxLook.Y, maxLook.Y)
+            // Clamp desired lookahead so it doesn't exceed a fraction of the screen in any axis
+            desiredLook = new Vector2(
+                MathHelper.Clamp(desiredLook.X, -maxLook.X, maxLook.X),
+                MathHelper.Clamp(desiredLook.Y, -maxLook.Y, maxLook.Y)
             );
 
-            // Desired camera center is target position plus lookahead
-            var desired = targetPosition + lookahead;
+            // Smoothly move the current lookahead toward the desired lookahead (so camera pans when direction changes)
+            _smoothedLookahead = SmoothDamp(_smoothedLookahead, desiredLook, ref _lookaheadVelocity, Math.Max(0.0001f, LookaheadSmoothTime), dt);
+
+            // Desired camera center is target position plus smoothed lookahead
+            var desired = targetPosition + _smoothedLookahead;
 
             // Deadzone bounds (centered on current camera position)
             var half = DeadZoneSize * 0.5f;

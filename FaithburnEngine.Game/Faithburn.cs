@@ -39,9 +39,6 @@ namespace FaithburnEngine.CoreGame
         // Hotbar UI
         private HotbarRenderer _hotbarRenderer;
         private int _lastScrollValue;
-        private const int HotbarDisplayCount = 10; // show 10 hotbar slots (1..0 keys)
-        private const int HotbarSlotSize = 48;
-        private const int HotbarPadding = 6;
 
         public Faithburn()
         {
@@ -258,7 +255,7 @@ namespace FaithburnEngine.CoreGame
             if (_player != null)
             {
                 var inv = _player.Inventory;
-                int total = Math.Min(HotbarDisplayCount, inv.Slots.Length);
+                int total = Math.Min(HotbarConstants.DisplayCount, inv.Slots.Length);
 
                 // Number keys 1..9,0 -> indices 0..9
                 for (int i = 0; i < total; i++)
@@ -284,17 +281,17 @@ namespace FaithburnEngine.CoreGame
                 if (m.LeftButton == ButtonState.Pressed)
                 {
                     int screenW = GraphicsDevice.Viewport.Width;
-                    int y = GraphicsDevice.Viewport.Height - HotbarSlotSize - 10;
-                    int width = total * HotbarSlotSize + (total - 1) * HotbarPadding;
+                    int y = GraphicsDevice.Viewport.Height - HotbarConstants.SlotSize - HotbarConstants.BottomOffset;
+                    int width = total * HotbarConstants.SlotSize + (total - 1) * HotbarConstants.Padding;
                     int startX = (screenW - width) / 2;
                     var mx = m.X;
                     var my = m.Y;
-                    if (my >= y && my <= y + HotbarSlotSize)
+                    if (my >= y && my <= y + HotbarConstants.SlotSize)
                     {
                         int rel = mx - startX;
                         if (rel >= 0)
                         {
-                            int idx = rel / (HotbarSlotSize + HotbarPadding);
+                            int idx = rel / (HotbarConstants.SlotSize + HotbarConstants.Padding);
                             if (idx >= 0 && idx < total)
                             {
                                 _player.HotbarIndex = idx;
@@ -335,7 +332,7 @@ namespace FaithburnEngine.CoreGame
             // Draw hotbar UI on top
             if (_hotbarRenderer != null && _player != null)
             {
-                _hotbarRenderer.Draw(_player.Inventory, Math.Clamp(_player.HotbarIndex, 0, HotbarDisplayCount - 1), HotbarSlotSize, HotbarDisplayCount, HotbarPadding);
+                _hotbarRenderer.Draw(_player.Inventory, Math.Clamp(_player.HotbarIndex, 0, HotbarConstants.DisplayCount - 1), HotbarConstants.SlotSize, HotbarConstants.DisplayCount, HotbarConstants.Padding);
             }
 
              base.Draw(gameTime);

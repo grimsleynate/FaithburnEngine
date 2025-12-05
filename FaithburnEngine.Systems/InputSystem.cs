@@ -21,7 +21,7 @@ namespace FaithburnEngine.Systems
         // Jump buffer allows queued jump input to trigger when ground contact occurs
         private const float JumpBufferTime = 0.12f;
 
-        public InputSystem(DefaultEcs.World world, WorldGrid? worldGrid = null, float speed = 360f)
+        public InputSystem(DefaultEcs.World world, WorldGrid? worldGrid = null, float speed = 540f)
             : base(world.GetEntities().With<Position>().With<Velocity>().AsSet())
         {
             _speed = speed;

@@ -9,9 +9,9 @@ namespace FaithburnEngine.Content.Models
     public sealed class ItemStats
     {
         //The base damage of this weapon.
-        public int Damage { get; set; }
+        public float Damage { get; set; }
         //How strong this tool is for harvesting.
-        public int HarvestPower { get; set; }
+        public float HarvestPower { get; set; }
         //The cooldown time between uses (in seconds).
         public float Cooldown { get; set; }
     }
