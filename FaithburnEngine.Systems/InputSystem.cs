@@ -5,23 +5,24 @@ using Microsoft.Xna.Framework.Input;
 using Microsoft.Xna.Framework.Graphics;
 using FaithburnEngine.Components;
 using FaithburnEngine.World;
+using System;
 
 namespace FaithburnEngine.Systems
 {
     public sealed class InputSystem : AEntitySetSystem<float>
     {
         private readonly float _speed;
-        private readonly WorldGrid? _worldGrid;
+        private readonly IWorldGrid? _worldGrid;
         private KeyboardState _prevKb;
         private MouseState _prevMouse;
-        private readonly GraphicsDevice _graphics; // optional for UI interactions
+        private readonly GraphicsDevice _graphics;
 
         private const float JumpVelocity = 960f;
-        private const float CoyoteTime = 0.12f; // seconds
+        private const float CoyoteTime = 0.12f;
         private const float JumpBufferTime = 0.12f;
         private const int DefaultHotbarCount = 10;
 
-        public InputSystem(DefaultEcs.World world, WorldGrid? worldGrid = null, float speed = 540f, GraphicsDevice? graphics = null)
+        public InputSystem(DefaultEcs.World world, IWorldGrid? worldGrid = null, float speed = 540f, GraphicsDevice? graphics = null)
             : base(world.GetEntities().With<Position>().With<Velocity>().AsSet())
         {
             _speed = speed;
@@ -35,19 +36,27 @@ namespace FaithburnEngine.Systems
         {
             var kb = Keyboard.GetState();
             var mouse = Mouse.GetState();
-            Vector2 dir = Vector2.Zero;
-
-            if (kb.IsKeyDown(Keys.A) || kb.IsKeyDown(Keys.Left)) dir.X -= 1f;
-            if (kb.IsKeyDown(Keys.D) || kb.IsKeyDown(Keys.Right)) dir.X += 1f;
-
-            if (dir != Vector2.Zero) dir.Normalize();
+            
+            // Use simple float for horizontal direction to avoid NaN from Vector2.Normalize on zero
+            float dirX = 0f;
+            if (kb.IsKeyDown(Keys.A) || kb.IsKeyDown(Keys.Left)) dirX -= 1f;
+            if (kb.IsKeyDown(Keys.D) || kb.IsKeyDown(Keys.Right)) dirX += 1f;
 
             ref var vel = ref entity.Get<Velocity>();
             ref var pos = ref entity.Get<Position>();
 
-            float targetSpeed = dir.X * _speed;
-            if (!entity.Has<MoveIntent>()) entity.Set(new MoveIntent { TargetSpeedX = targetSpeed });
-            else { ref var mi = ref entity.Get<MoveIntent>(); mi.TargetSpeedX = targetSpeed; }
+            float targetSpeed = dirX * _speed;
+            
+            // Ensure targetSpeed is valid (not NaN or Infinity)
+            if (!float.IsFinite(targetSpeed)) targetSpeed = 0f;
+            
+            if (!entity.Has<MoveIntent>()) 
+                entity.Set(new MoveIntent { TargetSpeedX = targetSpeed });
+            else 
+            { 
+                ref var mi = ref entity.Get<MoveIntent>(); 
+                mi.TargetSpeedX = targetSpeed; 
+            }
 
             // Hotbar selection: number keys 1..9,0
             if (entity.Has<PlayerTag>())
@@ -71,30 +80,42 @@ namespace FaithburnEngine.Systems
             }
 
             // Update InputState for other systems
-            if (!entity.Has<InputState>()) entity.Set(new InputState { JumpHeld = kb.IsKeyDown(Keys.Space) });
-            else { ref var isState = ref entity.Get<InputState>(); isState.JumpHeld = kb.IsKeyDown(Keys.Space); }
+            if (!entity.Has<InputState>()) 
+                entity.Set(new InputState { JumpHeld = kb.IsKeyDown(Keys.Space) });
+            else 
+            { 
+                ref var isState = ref entity.Get<InputState>(); 
+                isState.JumpHeld = kb.IsKeyDown(Keys.Space); 
+            }
 
             // Flip sprite horizontally based on movement direction
             if (entity.Has<Sprite>())
             {
                 ref var sprite = ref entity.Get<Sprite>();
-                if (dir.X > 0f) sprite.Effects = SpriteEffects.FlipHorizontally;
-                else if (dir.X < 0f) sprite.Effects = SpriteEffects.None;
+                if (dirX > 0f) sprite.Effects = SpriteEffects.FlipHorizontally;
+                else if (dirX < 0f) sprite.Effects = SpriteEffects.None;
             }
 
             // GroundedState init once
-            if (!entity.Has<GroundedState>()) entity.Set(new GroundedState { TimeSinceGrounded = float.MaxValue });
+            if (!entity.Has<GroundedState>()) 
+                entity.Set(new GroundedState { TimeSinceGrounded = float.MaxValue });
 
             // Determine grounded
             float timeSinceGrounded = entity.Get<GroundedState>().TimeSinceGrounded;
-            if (_worldGrid != null && _worldGrid.IsGrounded(pos.Value, epsilon: 3f)) timeSinceGrounded = 0f;
+            if (_worldGrid != null && _worldGrid.IsGrounded(pos.Value, epsilon: 3f)) 
+                timeSinceGrounded = 0f;
 
             // Jump buffer
             bool jumpPressed = kb.IsKeyDown(Keys.Space) && !_prevKb.IsKeyDown(Keys.Space);
             if (jumpPressed)
             {
-                if (!entity.Has<JumpIntent>()) entity.Set(new JumpIntent { TimeLeft = JumpBufferTime });
-                else { ref var intent = ref entity.Get<JumpIntent>(); intent.TimeLeft = JumpBufferTime; }
+                if (!entity.Has<JumpIntent>()) 
+                    entity.Set(new JumpIntent { TimeLeft = JumpBufferTime });
+                else 
+                { 
+                    ref var intent = ref entity.Get<JumpIntent>(); 
+                    intent.TimeLeft = JumpBufferTime; 
+                }
             }
 
             if (entity.Has<JumpIntent>())
@@ -103,10 +124,12 @@ namespace FaithburnEngine.Systems
                 intent.TimeLeft -= dt;
                 if (intent.TimeLeft > 0f && timeSinceGrounded <= CoyoteTime)
                 {
-                    if (vel.Value.Y >= -0.1f) vel.Value = new Vector2(vel.Value.X, -JumpVelocity);
+                    if (vel.Value.Y >= -0.1f) 
+                        vel.Value = new Vector2(vel.Value.X, -JumpVelocity);
                     entity.Remove<JumpIntent>();
                 }
-                if (intent.TimeLeft <= 0f) entity.Remove<JumpIntent>();
+                if (intent.TimeLeft <= 0f) 
+                    entity.Remove<JumpIntent>();
             }
 
             _prevKb = kb;

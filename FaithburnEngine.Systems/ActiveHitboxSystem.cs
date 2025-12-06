@@ -12,14 +12,14 @@ namespace FaithburnEngine.Systems
     public sealed class ActiveHitboxSystem : ISystem<float>
     {
         private readonly DefaultEcs.World _world;
-        private readonly WorldGrid _worldGrid;
+        private readonly IWorldGrid _worldGrid;
         private readonly ContentLoader _content;
         private readonly Queue<Entity> _pool = new();
         private readonly List<Entity> _active = new();
 
         public bool IsEnabled { get; set; } = true;
 
-        public ActiveHitboxSystem(DefaultEcs.World world, WorldGrid worldGrid, ContentLoader content)
+        public ActiveHitboxSystem(DefaultEcs.World world, IWorldGrid worldGrid, ContentLoader content)
         {
             _world = world;
             _worldGrid = worldGrid;

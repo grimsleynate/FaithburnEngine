@@ -34,13 +34,10 @@ namespace FaithburnEngine.Content.Models
         //This item's stats.
         public ItemStats Stats { get; set; } = new();
 
-        // Logical art key (mod-friendly). Example: "item.proto_pickaxe".
+        // Mod-friendly keys
         public string? SpriteKey { get; set; }
-
-        // Visual metadata (optional)
-        // If true, flip the item's native artwork horizontally so it faces the same
-        // direction as the player. This avoids hardcoding item ids in renderer.
-        public bool FlipToFacePlayer { get; set; } = false;
+        public string? HeldAnim { get; set; } // e.g., "swing", "thrust", "cast", "hold"
+        public bool ContinuousUse { get; set; } = true; // if false, require re-click between uses
 
         /// <summary>
         /// Extensibility hook for mods and content packs. Allows arbitrary metadata

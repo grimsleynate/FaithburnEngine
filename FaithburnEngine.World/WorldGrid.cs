@@ -7,13 +7,9 @@ namespace FaithburnEngine.World
 {
     /// <summary>
     /// Simple tile grid backed by dictionary.
-    /// Stores block IDs and their sprite variants for smart tiling.
-    /// WHY dictionary-backed prototype:
-    /// - Fast iteration while worldgen is in flux (no fixed bounds required).
-    /// - Easy to diff/patch tiles without allocating large arrays.
-    /// - Will be replaced with chunked arrays for performance in production (Tenet #3 - Efficient).
+    /// Implements IWorldGrid for compatibility with systems.
     /// </summary>
-    public sealed class WorldGrid
+    public sealed class WorldGrid : IWorldGrid
     {
         private readonly Dictionary<Point, string> _blockIds = new();
         private readonly Dictionary<Point, TileVariant> _variants = new();

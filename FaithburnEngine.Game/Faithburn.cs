@@ -5,6 +5,7 @@ using FaithburnEngine.Content;
 using FaithburnEngine.Core;
 using FaithburnEngine.Rendering;
 using FaithburnEngine.Systems;
+using FaithburnEngine.Systems.HeldAnimations;
 using FaithburnEngine.World;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -22,7 +23,7 @@ namespace FaithburnEngine.CoreGame
         private SpriteBatch _spriteBatch;
         private ContentLoader _contentLoader;
         private PlayerContext _player;
-        private WorldGrid _worldGrid;
+        private ChunkedWorldGrid _worldGrid;
         private DefaultEcs.World _world;
         private SpriteRenderer _spriteRenderer;
         private InventorySystem _inventorySystem;
@@ -31,34 +32,23 @@ namespace FaithburnEngine.CoreGame
         private Camera2D _camera;
         private float desiredZoom = 1.0f;
 
-        // ECS pipeline fields
         private SequentialSystem<float> _systems;
         private DefaultParallelRunner _runner;
-
-        // Keep a reference to the player entity so we can read position/velocity for camera follow
         private Entity _playerEntity;
-
-        // Hotbar UI
         private HotbarRenderer _hotbarRenderer;
         private int _lastScrollValue;
-
-        // Previous mouse state for edge detection
         private MouseState _prevMouseState;
-
-        // Cached reference to ActiveHitboxSystem
         private ActiveHitboxSystem _hitboxSystem;
-
-        // Asset registry
         private AssetRegistry _assets;
+        private HeldAnimationRegistry _heldAnimRegistry;
 
         public Faithburn()
         {
             _graphics = new GraphicsDeviceManager(this);
             Content.RootDirectory = "Content";
             IsMouseVisible = true;
-
             IsFixedTimeStep = true;
-            TargetElapsedTime = TimeSpan.FromSeconds(1.0 / 60.0); // 60 FPS
+            TargetElapsedTime = TimeSpan.FromSeconds(1.0 / 60.0);
         }
 
         protected override void Initialize()
@@ -78,10 +68,9 @@ namespace FaithburnEngine.CoreGame
 
             _assetLoader = new AssetLoader(Path.Combine(AppContext.BaseDirectory, "Content", "Assets"));
 
-            _worldGrid = new WorldGrid(_contentLoader);
+            _worldGrid = new ChunkedWorldGrid(_contentLoader);
             _spriteBatch = new SpriteBatch(GraphicsDevice);
 
-            // Init mod-aware asset registry: Mods first, then base Assets
             var searchRoots = new List<string>
             {
                 Path.Combine(AppContext.BaseDirectory, "Mods"),
@@ -89,6 +78,10 @@ namespace FaithburnEngine.CoreGame
             };
             _assets = new AssetRegistry(GraphicsDevice, searchRoots);
             RegisterDefaultAssets();
+
+            _heldAnimRegistry = new HeldAnimationRegistry();
+            _heldAnimRegistry.Register("swing", new FaithburnEngine.Systems.HeldAnimations.SwingAnimator());
+            _heldAnimRegistry.Register("thrust", new FaithburnEngine.Systems.HeldAnimations.ThrustAnimator());
 
             InitHotbarUi();
             var blockAtlas = InitBlockAtlas();
@@ -105,14 +98,12 @@ namespace FaithburnEngine.CoreGame
 
         private void RegisterDefaultAssets()
         {
-            // Map logical keys to relative paths under asset roots
             _assets.Register("ui.slot_bg", Path.Combine("slot_bg.png"));
             _assets.Register("tiles.grass_dirt", Path.Combine("tiles", "grass_dirt_variants.png"));
             _assets.Register("player.liliana", Path.Combine("Liliana.png"));
             _assets.Register("item.proto_pickaxe", Path.Combine("items", "proto_pickaxe.png"));
         }
 
-        // --- helpers ---
         private void InitHotbarUi()
         {
             Texture2D slotBg = null;
@@ -135,7 +126,7 @@ namespace FaithburnEngine.CoreGame
 
         private void GenerateWorld()
         {
-            var generator = new WorldGenerator(widthInTiles: 1000, heightInTiles: 500, surfaceLevel: 50);
+            var generator = new WorldGenerator(widthInTiles: 8400, heightInTiles: 2400, surfaceLevel: 1200);
             generator.FillWorld(_worldGrid);
         }
 
@@ -144,11 +135,37 @@ namespace FaithburnEngine.CoreGame
             int minX = _worldGrid.GetMinX();
             int maxX = _worldGrid.GetMaxX();
             int spawnXTile = (minX + maxX) / 2;
-            int topY = _worldGrid.GetTopMostSolidTileY(spawnXTile);
+            
+            // Find the topmost solid tile at spawn column and adjacent columns
+            int topTileY = _worldGrid.GetTopMostSolidTileY(spawnXTile);
+            int leftTileY = _worldGrid.GetTopMostSolidTileY(spawnXTile - 1);
+            int rightTileY = _worldGrid.GetTopMostSolidTileY(spawnXTile + 1);
+            int highestSurface = Math.Min(topTileY, Math.Min(leftTileY, rightTileY));
+            
+            // Player is 96 pixels tall (3 tiles). We need to check that the 3 tiles
+            // ABOVE the spawn point are all clear. Find the highest surface among
+            // all tiles the player's body will overlap.
+            int playerHeightInTiles = 3; // 96 pixels / 32 pixels per tile
+            for (int checkX = spawnXTile - 1; checkX <= spawnXTile + 1; checkX++)
+            {
+                for (int checkY = highestSurface - playerHeightInTiles; checkY < highestSurface; checkY++)
+                {
+                    if (_worldGrid.IsSolidTile(new Point(checkX, checkY)))
+                    {
+                        // Found a solid tile above - need to spawn even higher
+                        highestSurface = Math.Min(highestSurface, checkY);
+                    }
+                }
+            }
+            
+            // Spawn player with feet at the top of the highest surface tile
+            float spawnX = spawnXTile * _worldGrid.TileSize + _worldGrid.TileSize / 2f;
+            float spawnY = highestSurface * _worldGrid.TileSize - 1f;
+
+            System.Diagnostics.Debug.WriteLine($"SPAWN DEBUG: Final spawn at ({spawnX}, {spawnY}), highestSurface={highestSurface}");
 
             _playerEntity = _world.CreateEntity();
-            var playerPos = new FaithburnEngine.Components.Position { Value = new Vector2(spawnXTile * _worldGrid.TileSize + _worldGrid.TileSize / 2f, topY * _worldGrid.TileSize) };
-            _playerEntity.Set(playerPos);
+            _playerEntity.Set(new FaithburnEngine.Components.Position { Value = new Vector2(spawnX, spawnY) });
             _playerEntity.Set(new FaithburnEngine.Components.Velocity { Value = Vector2.Zero });
 
             GiveStarterItem("proto_pickaxe");
@@ -172,10 +189,10 @@ namespace FaithburnEngine.CoreGame
             };
             _playerEntity.Set(sprite);
 
-            var playerCollider = new FaithburnEngine.Components.Collider
+            var playerCollider = new Components.Collider
             {
-                Size = new Microsoft.Xna.Framework.Vector2(32f, 64f),
-                Offset = Microsoft.Xna.Framework.Vector2.Zero
+                Size = new Vector2(64f, 96f),
+                Offset = Vector2.Zero
             };
             _playerEntity.Set(playerCollider);
         }
@@ -214,7 +231,7 @@ namespace FaithburnEngine.CoreGame
                 new InputSystem(_world, _worldGrid, speed: 360f, GraphicsDevice),
                 new MovementSystem(_world, _worldGrid),
                 _hitboxSystem,
-                new HeldItemSystem(_world, _contentLoader, GraphicsDevice, _hitboxSystem, _assets),
+                new HeldItemSystem(_world, _contentLoader, GraphicsDevice, _hitboxSystem, _assets, _heldAnimRegistry, _camera, _player),
                 new InteractionSystem(_contentLoader, _inventorySystem, _worldGrid, _camera, _player),
                 new InventorySystem(_contentLoader, _world));
         }
@@ -224,13 +241,19 @@ namespace FaithburnEngine.CoreGame
             var k = Keyboard.GetState();
             var m = Mouse.GetState();
 
-            // HOTBAR INPUT
+            // DEBUG: Log velocity and position every 60 frames
+            if (_playerEntity.IsAlive && gameTime.TotalGameTime.TotalSeconds < 2)
+            {
+                ref var pos = ref _playerEntity.Get<Components.Position>();
+                ref var vel = ref _playerEntity.Get<Components.Velocity>();
+                System.Diagnostics.Debug.WriteLine($"FRAME DEBUG: pos=({pos.Value.X:F1}, {pos.Value.Y:F1}), vel=({vel.Value.X:F1}, {vel.Value.Y:F1})");
+            }
+
             if (_player != null)
             {
                 var inv = _player.Inventory;
                 int total = Math.Min(HotbarConstants.DisplayCount, inv.Slots.Length);
 
-                // Number keys 1..9,0 -> indices 0..9
                 for (int i = 0; i < total; i++)
                 {
                     Keys key = i == 9 ? Keys.D0 : (Keys)((int)Keys.D1 + i);
@@ -241,7 +264,6 @@ namespace FaithburnEngine.CoreGame
                     }
                 }
 
-                // Mouse wheel
                 int scroll = m.ScrollWheelValue;
                 if (scroll != _lastScrollValue)
                 {
@@ -250,7 +272,6 @@ namespace FaithburnEngine.CoreGame
                     _lastScrollValue = scroll;
                 }
 
-                // Mouse click selection (use same layout math as renderer)
                 if (m.LeftButton == ButtonState.Pressed)
                 {
                     int screenW = GraphicsDevice.Viewport.Width;
@@ -274,20 +295,18 @@ namespace FaithburnEngine.CoreGame
                 }
             }
 
-            // optional: zoom with + / - keys (speed increased ~2x)
             if (k.IsKeyDown(Keys.OemPlus) || k.IsKeyDown(Keys.Add)) _camera.Zoom += 1.0f * (float)gameTime.ElapsedGameTime.TotalSeconds;
             if (k.IsKeyDown(Keys.OemMinus) || k.IsKeyDown(Keys.Subtract)) _camera.Zoom -= 1.0f * (float)gameTime.ElapsedGameTime.TotalSeconds;
 
             float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
 
-            // ALL gameplay logic flows through systems (Tenet #4 - ECS First).
             _systems.Update(dt);
 
-            // After systems update, make the camera follow the player
             if (_playerEntity.IsAlive)
             {
                 ref var pos = ref _playerEntity.Get<Components.Position>();
                 ref var vel = ref _playerEntity.Get<Components.Velocity>();
+                _worldGrid.UpdateLoadedChunks(pos.Value, loadRadius: 3);
                 _camera.UpdateFollow(pos.Value, vel.Value, dt);
             }
 
@@ -304,7 +323,6 @@ namespace FaithburnEngine.CoreGame
 
             _spriteRenderer.Draw();
 
-            // Draw hotbar UI on top
             if (_hotbarRenderer != null && _player != null)
             {
                 _hotbarRenderer.Draw(_player.Inventory, Math.Clamp(_player.HotbarIndex, 0, HotbarConstants.DisplayCount - 1), HotbarConstants.SlotSize, HotbarConstants.DisplayCount, HotbarConstants.Padding);
@@ -315,10 +333,6 @@ namespace FaithburnEngine.CoreGame
 
         protected override void UnloadContent()
         {
-            // WHY explicit disposal (Tenet #3 - Efficient):
-            // DefaultEcs and DefaultParallelRunner hold OS resources (threads, events).
-            // Dispose them explicitly to ensure clean shutdown, no resource leaks.
-            // Important for hot-reload and testing.
             _systems?.Dispose();
             _runner?.Dispose();
             base.UnloadContent();
@@ -326,18 +340,12 @@ namespace FaithburnEngine.CoreGame
 
         private void SetUpDisplay()
         {
-            // Get display resolution
             var displayMode = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode;
-
-            // Set backbuffer to match screen resolution
             _graphics.PreferredBackBufferWidth = displayMode.Width;
             _graphics.PreferredBackBufferHeight = displayMode.Height;
-            _graphics.IsFullScreen = false; // keep border
+            _graphics.IsFullScreen = false;
             _graphics.ApplyChanges();
-
-            // Position window at top-left
             Window.Position = new Point(0, 0);
-
             _runner = new DefaultParallelRunner(Environment.ProcessorCount);
         }
 

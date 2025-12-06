@@ -50,5 +50,9 @@ namespace FaithburnEngine.Components
         /// </summary>
         // Whether we've spawned a hitbox for the current swing
         public bool HitboxSpawned;
+        /// <summary>
+        /// World-space aim target (e.g., mouse position in world) provided by systems.
+        /// </summary>
+        public Vector2 AimTarget;
     }
 }

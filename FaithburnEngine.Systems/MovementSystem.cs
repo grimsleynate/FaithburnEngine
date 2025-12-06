@@ -21,9 +21,9 @@ namespace FaithburnEngine.Systems
     /// </summary>
     public sealed class MovementSystem : AEntitySetSystem<float>
     {
-        private readonly WorldGrid? _worldGrid;
+        private readonly IWorldGrid? _worldGrid;
 
-        public MovementSystem(DefaultEcs.World world, WorldGrid? worldGrid = null)
+        public MovementSystem(DefaultEcs.World world, IWorldGrid? worldGrid = null)
             : base(world.GetEntities().With<Position>().With<Velocity>().AsSet())
         {
             _worldGrid = worldGrid;
@@ -36,12 +36,21 @@ namespace FaithburnEngine.Systems
                 ref var pos = ref entity.Get<Position>(); // feet position
                 ref var vel = ref entity.Get<Velocity>();
 
+                // Sanitize velocity - if NaN or Infinity, reset to zero
+                if (!float.IsFinite(vel.Value.X) || !float.IsFinite(vel.Value.Y))
+                {
+                    vel.Value = Vector2.Zero;
+                }
+
                 // Read intent
                 float targetSpeedX = 0f;
                 if (entity.Has<MoveIntent>())
                 {
                     ref var mi = ref entity.Get<MoveIntent>();
-                    targetSpeedX = MathHelper.Clamp(mi.TargetSpeedX, -Constants.Player.MaxSpeed, Constants.Player.MaxSpeed);
+                    targetSpeedX = mi.TargetSpeedX;
+                    // Sanitize
+                    if (!float.IsFinite(targetSpeedX)) targetSpeedX = 0f;
+                    targetSpeedX = MathHelper.Clamp(targetSpeedX, -Constants.Player.MaxSpeed, Constants.Player.MaxSpeed);
                 }
 
                 bool jumpHeld = false;
@@ -59,6 +68,7 @@ namespace FaithburnEngine.Systems
 
                 // --- Horizontal movement (axis-separated) ---
                 float vx = vel.Value.X;
+                if (!float.IsFinite(vx)) vx = 0f;
 
                 // Determine accel/decel based on grounded state
                 bool grounded = _worldGrid != null ? _worldGrid.IsGrounded(pos.Value, epsilon: 2f) : (timeSinceGrounded <= Constants.Player.CoyoteTime);
@@ -68,11 +78,17 @@ namespace FaithburnEngine.Systems
 
                 float desiredVX = targetSpeedX;
                 float diff = desiredVX - vx;
+                
                 if (Math.Abs(diff) > 0.01f)
                 {
                     float change = (Math.Abs(desiredVX) > Math.Abs(vx)) ? accel * dt : decel * dt;
                     if (Math.Abs(change) > Math.Abs(diff)) change = Math.Abs(diff);
                     vx += Math.Sign(diff) * change;
+                }
+                else
+                {
+                    // Close enough - snap to target
+                    vx = desiredVX;
                 }
 
                 // Soft cap
@@ -87,6 +103,7 @@ namespace FaithburnEngine.Systems
 
                 // --- Vertical movement ---
                 float vy = vel.Value.Y;
+                if (!float.IsFinite(vy)) vy = 0f;
 
                 // Gravity and variable jump height
                 float g = Constants.Player.Gravity;
@@ -154,43 +171,60 @@ namespace FaithburnEngine.Systems
             float left = proposedPos.X - halfW + offset.X;
             float right = proposedPos.X + halfW + offset.X;
 
+            // Shrink bottom by a few pixels to avoid detecting ground tiles as horizontal obstacles
+            // This prevents the player from being pushed sideways when standing on sloped terrain
+            const float groundTolerance = 4f;
+            float effectiveBottom = bottom - groundTolerance;
+            
+            // If the shrunken box has no height, skip horizontal collision
+            if (effectiveBottom <= top) return vx;
+
             int lx = (int)Math.Floor(left / tileSize);
             int rx = (int)Math.Floor((right - 0.001f) / tileSize);
             int ty = (int)Math.Floor(top / tileSize);
-            int by = (int)Math.Floor((bottom - 0.001f) / tileSize);
+            int by = (int)Math.Floor((effectiveBottom - 0.001f) / tileSize);
 
-            // For each tile we overlap, if solid, compute contact normal and project velocity
+            // Determine movement direction from fromPos to proposedPos
+            float moveDir = proposedPos.X - fromPos.X;
+
             for (int tx = lx; tx <= rx; tx++)
             {
                 for (int tyi = ty; tyi <= by; tyi++)
                 {
                     if (!_worldGrid.IsSolidTile(new Point(tx, tyi))) continue;
 
-                    // Compute tile AABB
                     float tileLeft = tx * tileSize;
                     float tileRight = tileLeft + tileSize;
-                    float tileTop = tyi * tileSize;
-                    float tileBottom = tileTop + tileSize;
 
-                    // Determine penetration on X axis
-                    var penLeft = right - tileLeft; // positive if overlapping from left
-                    var penRight = tileRight - left; // positive if overlapping from right
+                    float penLeft = right - tileLeft;
+                    float penRight = tileRight - left;
 
                     if (penLeft > 0f && penRight > 0f)
                     {
-                        // choose minimum penetration
-                        if (penLeft < penRight)
+                        // Use movement direction to decide push direction when penetrations are similar
+                        // If moving right (or stationary with equal pen), push left
+                        // If moving left, push right
+                        bool pushLeft;
+                        if (Math.Abs(penLeft - penRight) < 0.1f)
                         {
-                            // push left
-                            resolvedX = tileLeft - halfW - offset.X - Constants.Player.CollisionSkin;
-                            vx = 0f;
+                            // Penetrations are nearly equal - use movement direction
+                            pushLeft = moveDir >= 0f;
                         }
                         else
                         {
-                            // push right
-                            resolvedX = tileRight + halfW - offset.X + Constants.Player.CollisionSkin;
-                            vx = 0f;
+                            // Use minimum penetration
+                            pushLeft = penLeft < penRight;
                         }
+
+                        if (pushLeft)
+                        {
+                            resolvedX = tileLeft - halfW - offset.X - Constants.Player.CollisionSkin;
+                        }
+                        else
+                        {
+                            resolvedX = tileRight + halfW - offset.X + Constants.Player.CollisionSkin;
+                        }
+                        vx = 0f;
                         return vx;
                     }
                 }

@@ -10,13 +10,13 @@ namespace FaithburnEngine.Systems
     {
         private readonly Content.ContentLoader _content;
         private readonly InventorySystem _inventorySystem;
-        private readonly WorldGrid _world; // your world grid API
+        private readonly IWorldGrid _world;
         private readonly Camera2D _camera;
         private readonly PlayerContext _player;
 
         public bool IsEnabled { get; set; } = true;
 
-        public InteractionSystem(Content.ContentLoader content, InventorySystem invSys, WorldGrid world, Camera2D camera, PlayerContext player)
+        public InteractionSystem(Content.ContentLoader content, InventorySystem invSys, IWorldGrid world, Camera2D camera, PlayerContext player)
         {
             _content = content;
             _inventorySystem = invSys;
@@ -27,12 +27,10 @@ namespace FaithburnEngine.Systems
 
         public void Update(float dt)
         {
-
         }
 
         public void Dispose()
         {
-            
         }
     }
 }
