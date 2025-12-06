@@ -2,7 +2,7 @@
   {
     "id": "grass_dirt",
     "solid": true,
-    "hardness": 1,
+    "hardness": 1.0,
     "dropItemId": "dirt",
     "spriteRef": "tiles/grass_dirt_variants"
   }

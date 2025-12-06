@@ -18,5 +18,12 @@ namespace FaithburnEngine.World
         int GetMaxX();
         BlockDef GetBlock(Point tileCoord);
         TileVariant GetVariant(Point tileCoord);
+        
+        /// <summary>
+        /// Remove block at tile coordinate (set to air).
+        /// WHY in interface: Mining/harvesting system needs to destroy blocks
+        /// regardless of underlying world implementation.
+        /// </summary>
+        void RemoveBlock(Point tileCoord);
     }
 }

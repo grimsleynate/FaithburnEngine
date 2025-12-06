@@ -20,10 +20,31 @@ namespace FaithburnEngine.Rendering
         private readonly int _tileSize;
         private readonly Camera2D _camera;
         private readonly System.Func<string, FaithburnEngine.Content.Models.ItemDef?>? _itemLookup;
+        private readonly AssetRegistry? _assets;
+        
+        // 1x1 white pixel texture for drawing solid colored rectangles
+        private Texture2D? _whitePixel;
 
-        // itemLookup is an optional function that maps an ItemId to its ItemDef. If not provided,
-        // renderer will fall back to simple heuristics (previous hardcoded behavior).
-        public SpriteRenderer(DefaultEcs.World world, SpriteBatch spriteBatch, BlockAtlas blockAtlas, IWorldGrid worldGrid, Camera2D camera, System.Func<string, FaithburnEngine.Content.Models.ItemDef?>? itemLookup = null, int tileSize = 32)
+        /// <summary>
+        /// Creates a new SpriteRenderer.
+        /// </summary>
+        /// <param name="world">ECS world containing entities to render.</param>
+        /// <param name="spriteBatch">SpriteBatch for drawing.</param>
+        /// <param name="blockAtlas">Atlas for block tile variants.</param>
+        /// <param name="worldGrid">World grid for tile lookup.</param>
+        /// <param name="camera">Camera for view transformation.</param>
+        /// <param name="itemLookup">Optional function to look up ItemDef by item ID.</param>
+        /// <param name="assets">Optional AssetRegistry for loading item textures.</param>
+        /// <param name="tileSize">Tile size in pixels (default 32).</param>
+        public SpriteRenderer(
+            DefaultEcs.World world, 
+            SpriteBatch spriteBatch, 
+            BlockAtlas blockAtlas, 
+            IWorldGrid worldGrid, 
+            Camera2D camera, 
+            System.Func<string, FaithburnEngine.Content.Models.ItemDef?>? itemLookup = null,
+            AssetRegistry? assets = null,
+            int tileSize = 32)
         {
             _world = world;
             _spriteBatch = spriteBatch;
@@ -32,6 +53,11 @@ namespace FaithburnEngine.Rendering
             _tileSize = tileSize;
             _camera = camera;
             _itemLookup = itemLookup;
+            _assets = assets;
+            
+            // Create 1x1 white pixel texture for drawing solid colored shapes
+            _whitePixel = new Texture2D(spriteBatch.GraphicsDevice, 1, 1);
+            _whitePixel.SetData(new[] { Color.White });
         }
 
         /// <summary>
@@ -53,10 +79,86 @@ namespace FaithburnEngine.Rendering
             // Draw world tiles (background layer)
             DrawWorldTiles();
 
+            // Draw dropped items (above tiles, below entities)
+            DrawDroppedItems();
+
             // Draw ECS entities (foreground layer)
             DrawEntities();
 
             _spriteBatch.End();
+        }
+
+        /// <summary>
+        /// Draw dropped items in the world.
+        /// WHY separate from DrawEntities: Dropped items don't have Sprite components,
+        /// they use the item's icon texture based on ItemId looked up via _itemLookup and _assets.
+        /// </summary>
+        private void DrawDroppedItems()
+        {
+            if (_whitePixel == null) return;
+
+            foreach (var e in _world.GetEntities().With<Position>().With<DroppedItem>().AsEnumerable())
+            {
+                ref var pos = ref e.Get<Position>();
+                ref var drop = ref e.Get<DroppedItem>();
+
+                Texture2D? icon = null;
+
+                // Try to look up the item's sprite texture
+                if (_itemLookup != null && _assets != null)
+                {
+                    var itemDef = _itemLookup(drop.ItemId);
+                    if (itemDef != null && !string.IsNullOrEmpty(itemDef.SpriteKey))
+                    {
+                        _assets.TryGetTexture(itemDef.SpriteKey, out icon);
+                    }
+                }
+
+                if (icon != null)
+                {
+                    // Draw the item icon centered at position
+                    // WHY center origin: Dropped items should appear centered at their world position
+                    var origin = new Vector2(icon.Width / 2f, icon.Height / 2f);
+                    
+                    // Add slight bobbing animation for visual interest
+                    float bob = MathF.Sin((float)Environment.TickCount / 300f) * 2f;
+                    var drawPos = pos.Value + new Vector2(0f, bob - 8f); // Offset up slightly from feet position
+                    
+                    // Tint yellow when magnetized
+                    Color tint = Color.White;
+                    if (drop.IsMagnetized)
+                    {
+                        float pulse = MathF.Sin((float)Environment.TickCount / 100f) * 0.3f + 0.7f;
+                        tint = Color.Lerp(Color.White, Color.Yellow, pulse * 0.5f);
+                    }
+                    
+                    _spriteBatch.Draw(icon, drawPos, null, tint, 0f, origin, 1f, SpriteEffects.None, 0f);
+                }
+                else
+                {
+                    // Fallback: draw colored square if no texture found
+                    var rect = new Rectangle(
+                        (int)(pos.Value.X - 8),
+                        (int)(pos.Value.Y - 16),
+                        16, 16
+                    );
+
+                    Color color = drop.ItemId switch
+                    {
+                        "dirt" => new Color(139, 90, 43),
+                        "grass_dirt" => new Color(86, 125, 70),
+                        _ => Color.White
+                    };
+
+                    if (drop.IsMagnetized)
+                    {
+                        float pulse = MathF.Sin((float)Environment.TickCount / 100f) * 0.3f + 0.7f;
+                        color = Color.Lerp(color, Color.Yellow, pulse * 0.5f);
+                    }
+
+                    _spriteBatch.Draw(_whitePixel, rect, color);
+                }
+            }
         }
 
         private void DrawWorldTiles()

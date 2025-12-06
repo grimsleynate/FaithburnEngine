@@ -89,7 +89,18 @@ namespace FaithburnEngine.CoreGame
             _inventorySystem = new InventorySystem(_contentLoader, _world);
             _interactionSystem = new InteractionSystem(_contentLoader, _inventorySystem, _worldGrid, _camera, _player);
             _hitboxSystem = new ActiveHitboxSystem(_world, _worldGrid, _contentLoader);
-            _spriteRenderer = new SpriteRenderer(_world, _spriteBatch, blockAtlas, _worldGrid, _camera);
+            
+            // Create sprite renderer with item lookup for dropped item rendering
+            _spriteRenderer = new SpriteRenderer(
+                _world, 
+                _spriteBatch, 
+                blockAtlas, 
+                _worldGrid, 
+                _camera,
+                itemLookup: id => _contentLoader.GetItem(id),
+                assets: _assets,
+                tileSize: _worldGrid.TileSize
+            );
 
             CreatePlayerEntity();
             CenterCameraOnPlayer();
@@ -102,6 +113,9 @@ namespace FaithburnEngine.CoreGame
             _assets.Register("tiles.grass_dirt", Path.Combine("tiles", "grass_dirt_variants.png"));
             _assets.Register("player.liliana", Path.Combine("Liliana.png"));
             _assets.Register("item.proto_pickaxe", Path.Combine("items", "proto_pickaxe.png"));
+            
+            // Item icons for dropped items and hotbar
+            _assets.Register("item.dirt", Path.Combine("items", "dirt.png"));
         }
 
         private void InitHotbarUi()
@@ -142,27 +156,21 @@ namespace FaithburnEngine.CoreGame
             int rightTileY = _worldGrid.GetTopMostSolidTileY(spawnXTile + 1);
             int highestSurface = Math.Min(topTileY, Math.Min(leftTileY, rightTileY));
             
-            // Player is 96 pixels tall (3 tiles). We need to check that the 3 tiles
-            // ABOVE the spawn point are all clear. Find the highest surface among
-            // all tiles the player's body will overlap.
-            int playerHeightInTiles = 3; // 96 pixels / 32 pixels per tile
+            // Player is 96 pixels tall (3 tiles). Check that tiles above spawn are clear.
+            int playerHeightInTiles = 3;
             for (int checkX = spawnXTile - 1; checkX <= spawnXTile + 1; checkX++)
             {
                 for (int checkY = highestSurface - playerHeightInTiles; checkY < highestSurface; checkY++)
                 {
                     if (_worldGrid.IsSolidTile(new Point(checkX, checkY)))
                     {
-                        // Found a solid tile above - need to spawn even higher
                         highestSurface = Math.Min(highestSurface, checkY);
                     }
                 }
             }
             
-            // Spawn player with feet at the top of the highest surface tile
             float spawnX = spawnXTile * _worldGrid.TileSize + _worldGrid.TileSize / 2f;
             float spawnY = highestSurface * _worldGrid.TileSize - 1f;
-
-            System.Diagnostics.Debug.WriteLine($"SPAWN DEBUG: Final spawn at ({spawnX}, {spawnY}), highestSurface={highestSurface}");
 
             _playerEntity = _world.CreateEntity();
             _playerEntity.Set(new FaithburnEngine.Components.Position { Value = new Vector2(spawnX, spawnY) });
@@ -232,7 +240,8 @@ namespace FaithburnEngine.CoreGame
                 new MovementSystem(_world, _worldGrid),
                 _hitboxSystem,
                 new HeldItemSystem(_world, _contentLoader, GraphicsDevice, _hitboxSystem, _assets, _heldAnimRegistry, _camera, _player),
-                new InteractionSystem(_contentLoader, _inventorySystem, _worldGrid, _camera, _player),
+                new HarvestingSystem(_world, _worldGrid, _contentLoader, _camera, _player, GraphicsDevice),
+                new ItemPickupSystem(_world, _worldGrid, _contentLoader, _player),
                 new InventorySystem(_contentLoader, _world));
         }
 
@@ -240,14 +249,6 @@ namespace FaithburnEngine.CoreGame
         {
             var k = Keyboard.GetState();
             var m = Mouse.GetState();
-
-            // DEBUG: Log velocity and position every 60 frames
-            if (_playerEntity.IsAlive && gameTime.TotalGameTime.TotalSeconds < 2)
-            {
-                ref var pos = ref _playerEntity.Get<Components.Position>();
-                ref var vel = ref _playerEntity.Get<Components.Velocity>();
-                System.Diagnostics.Debug.WriteLine($"FRAME DEBUG: pos=({pos.Value.X:F1}, {pos.Value.Y:F1}), vel=({vel.Value.X:F1}, {vel.Value.Y:F1})");
-            }
 
             if (_player != null)
             {

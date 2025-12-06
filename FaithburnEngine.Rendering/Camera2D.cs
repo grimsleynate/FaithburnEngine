@@ -1,5 +1,6 @@
 ﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using System;
 
 namespace FaithburnEngine.Rendering
 {
@@ -23,10 +24,8 @@ namespace FaithburnEngine.Rendering
         public Vector2 Origin { get; set; } = Vector2.Zero;
 
         // Anchor fractions (0..1) used when computing origin from viewport size
-        // HorizontalAnchor: fraction across the screen where the player will be positioned (0=left, 1=right)
-        public float HorizontalAnchor { get; set; } = 1f / 3f; // place player ~1/3 from left so 2/3 ahead
-        // VerticalAnchor: fraction down the screen where the player will be positioned (0=top, 1=bottom)
-        public float VerticalAnchor { get; set; } = 0.6f; // show more sky above player
+        public float HorizontalAnchor { get; set; } = 1f / 3f;
+        public float VerticalAnchor { get; set; } = 0.6f;
 
         // Dead zone size in world pixels (box centered on camera). Small movements inside this box won't move the camera.
         public Vector2 DeadZoneSize { get; set; } = new Vector2(160f, 96f);
@@ -44,6 +43,12 @@ namespace FaithburnEngine.Rendering
         // Smooth time used by SmoothDamp (approximate response time in seconds). Smaller => snappier.
         public float SmoothTime { get; set; } = 0.12f;
 
+        // WHY PixelSnap: When enabled, camera position is rounded to prevent sub-pixel
+        // rendering which causes "texture bleeding" or "seam artifacts" between tiles.
+        // This happens because floating-point camera positions cause the GPU to sample
+        // from adjacent pixels in the texture atlas, showing hairline gaps between tiles.
+        public bool PixelSnap { get; set; } = true;
+
         // Internal velocity state used by SmoothDamp for camera position
         private Vector2 _smoothVelocity = Vector2.Zero;
 
@@ -57,13 +62,31 @@ namespace FaithburnEngine.Rendering
             Origin = new Vector2(viewport.Width * HorizontalAnchor, viewport.Height * VerticalAnchor);
         }
 
+        /// <summary>
+        /// Get the effective camera position, optionally snapped to pixel boundaries.
+        /// WHY: Sub-pixel camera positions cause texture bleeding at tile seams.
+        /// </summary>
+        public Vector2 GetEffectivePosition()
+        {
+            if (PixelSnap)
+            {
+                // Round to nearest pixel to prevent sub-pixel rendering artifacts
+                return new Vector2(
+                    MathF.Round(Position.X),
+                    MathF.Round(Position.Y)
+                );
+            }
+            return Position;
+        }
+
         // Build the view matrix used by SpriteBatch.Begin(transformMatrix: ...)
         public Matrix GetViewMatrix()
         {
-            // Corrected order: translate world by -Position (so Position becomes origin), then rotate/scale around Origin, then translate back by Origin.
-            // This ensures a world point at `Position` appears at screen `Origin`.
+            // WHY use GetEffectivePosition: Snapping prevents tile seam artifacts
+            var pos = GetEffectivePosition();
+            
             return
-                Matrix.CreateTranslation(new Vector3(-Position, 0f)) *
+                Matrix.CreateTranslation(new Vector3(-pos, 0f)) *
                 Matrix.CreateRotationZ(Rotation) *
                 Matrix.CreateScale(Zoom) *
                 Matrix.CreateTranslation(new Vector3(Origin, 0f));

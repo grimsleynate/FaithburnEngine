@@ -8,5 +8,15 @@
     "spriteKey": "item.proto_pickaxe",
     "heldAnim": "swing",
     "continuousUse": true
+  },
+  {
+    "id": "dirt",
+    "type": "Block",
+    "toolKind": "None",
+    "stackMax": 9999,
+    "stats": { "damage": 0.0, "harvestPower": 0.0, "cooldown": 0.0 },
+    "spriteKey": "item.dirt",
+    "heldAnim": null,
+    "continuousUse": false
   }
 ]

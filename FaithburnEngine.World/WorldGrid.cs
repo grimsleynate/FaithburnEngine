@@ -71,6 +71,15 @@ namespace FaithburnEngine.World
         }
 
         /// <summary>
+        /// Remove block at tile coordinate (set to air).
+        /// WHY separate from SetBlock: Semantic clarity for mining/destruction logic.
+        /// </summary>
+        public void RemoveBlock(Point coord)
+        {
+            SetBlock(coord, "air");
+        }
+
+        /// <summary>
         /// Set block at coordinate and recalculate its variant + neighbors.
         /// </summary>
         public void SetBlock(Point coord, string blockId)

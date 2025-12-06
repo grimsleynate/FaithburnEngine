@@ -9,6 +9,14 @@ using System;
 
 namespace FaithburnEngine.Systems
 {
+    /// <summary>
+    /// Handles player input for movement, jumping, and hotbar selection.
+    /// 
+    /// WHY AEntitySetSystem with safety checks:
+    /// We query entities with Position+Velocity, but DroppedItem entities also have these.
+    /// When HarvestingSystem creates new entities mid-frame, the cached entity set can include
+    /// stale references. We add safety checks to skip non-player entities and handle missing components.
+    /// </summary>
     public sealed class InputSystem : AEntitySetSystem<float>
     {
         private readonly float _speed;
@@ -34,6 +42,12 @@ namespace FaithburnEngine.Systems
 
         protected override void Update(float dt, in Entity entity)
         {
+            // Safety: Skip entities that are dropped items (they have Position+Velocity but shouldn't receive input)
+            if (entity.Has<DroppedItem>()) return;
+            
+            // Safety: Verify entity still has required components (can be stale after mid-frame entity changes)
+            if (!entity.Has<Position>() || !entity.Has<Velocity>()) return;
+
             var kb = Keyboard.GetState();
             var mouse = Mouse.GetState();
             

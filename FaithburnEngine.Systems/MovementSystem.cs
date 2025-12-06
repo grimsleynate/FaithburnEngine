@@ -161,7 +161,11 @@ namespace FaithburnEngine.Systems
 
             var col = entity.Get<Collider>();
             var offset = col.Offset;
-            float halfW = col.Size.X * 0.5f;
+            
+            // WHY shrink: Allows player to fit through gaps exactly matching their sprite width.
+            // A 64px player should fit through a 64px (2-tile) gap. Without shrinking,
+            // floating-point precision causes false positives at tile boundaries.
+            float halfW = (col.Size.X - Constants.Player.HorizontalColliderShrink) * 0.5f;
             float h = col.Size.Y;
             int tileSize = _worldGrid.TileSize;
 
