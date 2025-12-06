@@ -33,8 +33,9 @@ namespace FaithburnEngine.Content.Models
         public int StackMax { get; set; } = 9999;
         //This item's stats.
         public ItemStats Stats { get; set; } = new();
-        //This item's sprite reference.
-        public string? SpriteRef { get; set; }
+
+        // Logical art key (mod-friendly). Example: "item.proto_pickaxe".
+        public string? SpriteKey { get; set; }
 
         // Visual metadata (optional)
         // If true, flip the item's native artwork horizontally so it faces the same

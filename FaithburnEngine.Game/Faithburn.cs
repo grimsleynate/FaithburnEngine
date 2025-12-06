@@ -12,6 +12,7 @@ using Microsoft.Xna.Framework.Input;
 using System;
 using System.IO;
 using FaithburnEngine.Content.Models;
+using System.Collections.Generic;
 
 namespace FaithburnEngine.CoreGame
 {
@@ -28,7 +29,7 @@ namespace FaithburnEngine.CoreGame
         private InteractionSystem _interactionSystem;
         private AssetLoader _assetLoader;
         private Camera2D _camera;
-        private float desiredZoom = 1.0f; 
+        private float desiredZoom = 1.0f;
 
         // ECS pipeline fields
         private SequentialSystem<float> _systems;
@@ -47,46 +48,29 @@ namespace FaithburnEngine.CoreGame
         // Cached reference to ActiveHitboxSystem
         private ActiveHitboxSystem _hitboxSystem;
 
+        // Asset registry
+        private AssetRegistry _assets;
+
         public Faithburn()
         {
             _graphics = new GraphicsDeviceManager(this);
             Content.RootDirectory = "Content";
             IsMouseVisible = true;
-            
+
             IsFixedTimeStep = true;
             TargetElapsedTime = TimeSpan.FromSeconds(1.0 / 60.0); // 60 FPS
         }
 
         protected override void Initialize()
         {
-            // Get display resolution
-            var displayMode = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode;
-
-            // Set backbuffer to match screen resolution
-            _graphics.PreferredBackBufferWidth = displayMode.Width;
-            _graphics.PreferredBackBufferHeight = displayMode.Height;
-            _graphics.IsFullScreen = false; // keep border
-            _graphics.ApplyChanges();
-
-            // Position window at top-left
-            Window.Position = new Point(0, 0);
-
             _world = new DefaultEcs.World();
-
-            _runner = new DefaultParallelRunner(Environment.ProcessorCount);
-
-            _camera = new Camera2D();
-            _camera.UpdateOrigin(GraphicsDevice.Viewport);
-            _camera.Zoom = desiredZoom;
-
-            // Systems will be initialized in LoadContent once dependencies (content, worldGrid) are ready.
-
+            SetUpDisplay();
+            SetUpCamera();
             base.Initialize();
         }
 
         protected override void LoadContent()
         {
-            // Create player with 10 inventory slots (hotbar uses first 10)
             _player = new PlayerContext(10);
 
             _contentLoader = new ContentLoader(Path.Combine(AppContext.BaseDirectory, "Content", "Models"));
@@ -97,124 +81,82 @@ namespace FaithburnEngine.CoreGame
             _worldGrid = new WorldGrid(_contentLoader);
             _spriteBatch = new SpriteBatch(GraphicsDevice);
 
-            // Hotbar renderer depends on SpriteBatch, Content and UI assets
-            Texture2D slotBg = null;
-            SpriteFont uiFont = null;
-            try { slotBg = Content.Load<Texture2D>("UI/slot_bg"); } catch { slotBg = null; }
-            try { uiFont = Content.Load<SpriteFont>("Fonts/UiFont"); } catch { uiFont = null; }
-            _hotbarRenderer = new HotbarRenderer(_spriteBatch, _contentLoader, slotBg, uiFont, GraphicsDevice);
-            _lastScrollValue = Mouse.GetState().ScrollWheelValue;
-            _prevMouseState = Mouse.GetState();
+            // Init mod-aware asset registry: Mods first, then base Assets
+            var searchRoots = new List<string>
+            {
+                Path.Combine(AppContext.BaseDirectory, "Mods"),
+                Path.Combine(AppContext.BaseDirectory, "Content", "Assets")
+            };
+            _assets = new AssetRegistry(GraphicsDevice, searchRoots);
+            RegisterDefaultAssets();
 
-            // Initialize block atlas and load sprite sheets
-            var blockAtlas = new BlockAtlas(32, 4);
-            // For now, assume it's loaded:
-            var grassDirtSheet = Content.Load<Texture2D>("Assets/tiles/grass_dirt_variants");
-            blockAtlas.RegisterAtlas("grass_dirt", grassDirtSheet, 16);
-
-            // Generate world with flat terrain
-            var generator = new WorldGenerator(
-                widthInTiles: 1000,
-                heightInTiles: 500,
-                surfaceLevel: 50
-            );
-            generator.FillWorld(_worldGrid);
-
+            InitHotbarUi();
+            var blockAtlas = InitBlockAtlas();
+            GenerateWorld();
             _inventorySystem = new InventorySystem(_contentLoader, _world);
             _interactionSystem = new InteractionSystem(_contentLoader, _inventorySystem, _worldGrid, _camera, _player);
             _hitboxSystem = new ActiveHitboxSystem(_world, _worldGrid, _contentLoader);
             _spriteRenderer = new SpriteRenderer(_world, _spriteBatch, blockAtlas, _worldGrid, _camera);
 
-            // Create player entity and set initial position and sprite
-            // Place X at half of world width and Y at top-most solid tile for that column
+            CreatePlayerEntity();
+            CenterCameraOnPlayer();
+            BuildSystemPipeline();
+        }
+
+        private void RegisterDefaultAssets()
+        {
+            // Map logical keys to relative paths under asset roots
+            _assets.Register("ui.slot_bg", Path.Combine("slot_bg.png"));
+            _assets.Register("tiles.grass_dirt", Path.Combine("tiles", "grass_dirt_variants.png"));
+            _assets.Register("player.liliana", Path.Combine("Liliana.png"));
+            _assets.Register("item.proto_pickaxe", Path.Combine("items", "proto_pickaxe.png"));
+        }
+
+        // --- helpers ---
+        private void InitHotbarUi()
+        {
+            Texture2D slotBg = null;
+            if (_assets.TryGetTexture("ui.slot_bg", out var tex)) slotBg = tex;
+            SpriteFont uiFont = null;
+            _hotbarRenderer = new HotbarRenderer(_spriteBatch, _contentLoader, slotBg, uiFont, GraphicsDevice, _assets);
+            _lastScrollValue = Mouse.GetState().ScrollWheelValue;
+            _prevMouseState = Mouse.GetState();
+        }
+
+        private BlockAtlas InitBlockAtlas()
+        {
+            var blockAtlas = new BlockAtlas(32, 4);
+            if (_assets.TryGetTexture("tiles.grass_dirt", out var sheet))
+            {
+                blockAtlas.RegisterAtlas("grass_dirt", sheet, 16);
+            }
+            return blockAtlas;
+        }
+
+        private void GenerateWorld()
+        {
+            var generator = new WorldGenerator(widthInTiles: 1000, heightInTiles: 500, surfaceLevel: 50);
+            generator.FillWorld(_worldGrid);
+        }
+
+        private void CreatePlayerEntity()
+        {
             int minX = _worldGrid.GetMinX();
             int maxX = _worldGrid.GetMaxX();
             int spawnXTile = (minX + maxX) / 2;
             int topY = _worldGrid.GetTopMostSolidTileY(spawnXTile);
 
             _playerEntity = _world.CreateEntity();
-            // Position.Value represents the player's feet world coordinate (x,y)
             var playerPos = new FaithburnEngine.Components.Position { Value = new Vector2(spawnXTile * _worldGrid.TileSize + _worldGrid.TileSize / 2f, topY * _worldGrid.TileSize) };
             _playerEntity.Set(playerPos);
-
-            // Give the player a Velocity component so InputSystem can control them
             _playerEntity.Set(new FaithburnEngine.Components.Velocity { Value = Vector2.Zero });
 
-            // Give player a proto_pickaxe if there is an empty inventory slot
-            var proto = _contentLoader.GetItem("proto_pickaxe");
-            if (proto != null)
-            {
-                bool placed = false;
-                for (int i = 0; i < _player.Inventory.Slots.Length; i++)
-                {
-                    var s = _player.Inventory.Slots[i];
-                    if (s.IsEmpty)
-                    {
-                        s.Set(proto.Id, 1);
-                        placed = true;
-                        break;
-                    }
-                }
+            GiveStarterItem("proto_pickaxe");
 
-                // If no space, simply discard (delete) the item per current behavior
-                if (!placed)
-                {
-                    // no-op: item dropped/removed
-                }
-            }
-
-            // Load player texture using Content (assumes file at Content/Assets/Liliana.png)
-            Texture2D playerTex = null;
-            // 1) Try content pipeline (asset name without extension)
-            try
-            {
-                playerTex = Content.Load<Texture2D>("Assets/Liliana");
-            }
-            catch
-            {
-                // ignore and try disk load
-            }
-
-            // 2) If Content.Load failed, try loading the PNG directly from disk (common in non-Content pipeline setups)
+            var playerTex = LoadPlayerTexture();
             if (playerTex == null)
             {
-                string[] candidatePaths = new[] {
-                    Path.Combine(AppContext.BaseDirectory, "Content", "Assets", "Liliana.png"),
-                    Path.Combine(AppContext.BaseDirectory, "Content", "Liliana.png"),
-                    Path.Combine(AppContext.BaseDirectory, "Content", "Assets", "sprites", "Liliana.png"),
-                    Path.Combine(AppContext.BaseDirectory, "Content", "Assets", "Sprites", "Liliana.png")
-                };
-
-                foreach (var p in candidatePaths)
-                {
-                    try
-                    {
-                        if (File.Exists(p))
-                        {
-                            using var fs = File.OpenRead(p);
-                            playerTex = Texture2D.FromStream(GraphicsDevice, fs);
-                            break;
-                        }
-                    }
-                    catch
-                    {
-                        // keep trying other paths
-                    }
-                }
-            }
-
-            // 3) Try AssetLoader cache as final non-destructive fallback
-            if (playerTex == null)
-            {
-                try { playerTex = _assetLoader.GetTexture("Liliana.png"); } catch { playerTex = null; }
-            }
-
-            // If we still don't have a player texture, create a simple placeholder so the player is visible.
-            if (playerTex == null)
-            {
-                System.Diagnostics.Debug.WriteLine("Failed to load Liliana.png from content or disk; using magenta placeholder.");
-                int pw = 64;
-                int ph = 96;
+                int pw = 64, ph = 96;
                 playerTex = new Texture2D(GraphicsDevice, pw, ph);
                 var pixels = new Color[pw * ph];
                 for (int i = 0; i < pixels.Length; i++) pixels[i] = Color.Magenta;
@@ -224,31 +166,55 @@ namespace FaithburnEngine.CoreGame
             var sprite = new FaithburnEngine.Components.Sprite
             {
                 Texture = playerTex,
-                // Use bottom-center origin so Position corresponds to feet on the ground
                 Origin = new Vector2(playerTex.Width / 2f, playerTex.Height),
                 Tint = Color.White,
                 Scale = 1f
             };
             _playerEntity.Set(sprite);
 
-            // Add a collider so AABB collision is used. Anchor at feet (bottom-center). Size chosen to fit typical character art.
             var playerCollider = new FaithburnEngine.Components.Collider
             {
                 Size = new Microsoft.Xna.Framework.Vector2(32f, 64f),
                 Offset = Microsoft.Xna.Framework.Vector2.Zero
             };
             _playerEntity.Set(playerCollider);
+        }
 
-            // Center camera on player initially and use very small deadzone so player remains centered
+        private Texture2D LoadPlayerTexture()
+        {
+            if (_assets.TryGetTexture("player.liliana", out var tex)) return tex;
+            return null;
+        }
+
+        private void GiveStarterItem(string itemId)
+        {
+            var proto = _contentLoader.GetItem(itemId);
+            if (proto == null) return;
+            for (int i = 0; i < _player.Inventory.Slots.Length; i++)
+            {
+                var s = _player.Inventory.Slots[i];
+                if (s.IsEmpty)
+                {
+                    s.Set(proto.Id, 1);
+                    break;
+                }
+            }
+        }
+
+        private void CenterCameraOnPlayer()
+        {
             ref var ppos = ref _playerEntity.Get<FaithburnEngine.Components.Position>();
             _camera.Position = ppos.Value;
-            _camera.DeadZoneSize = new Vector2(2f, 2f); // tiny deadzone to avoid micro-jitter but keep player centered
+            _camera.DeadZoneSize = new Vector2(2f, 2f);
+        }
 
+        private void BuildSystemPipeline()
+        {
             _systems = new SequentialSystem<float>(
-                // Ensure Input runs before Movement so buffered jumps are processed deterministically
-                new InputSystem(_world, _worldGrid, speed: 360f),
+                new InputSystem(_world, _worldGrid, speed: 360f, GraphicsDevice),
                 new MovementSystem(_world, _worldGrid),
                 _hitboxSystem,
+                new HeldItemSystem(_world, _contentLoader, GraphicsDevice, _hitboxSystem, _assets),
                 new InteractionSystem(_contentLoader, _inventorySystem, _worldGrid, _camera, _player),
                 new InventorySystem(_contentLoader, _world));
         }
@@ -308,22 +274,14 @@ namespace FaithburnEngine.CoreGame
                 }
             }
 
-             // optional: zoom with + / - keys (speed increased ~2x)
-             if (k.IsKeyDown(Keys.OemPlus) || k.IsKeyDown(Keys.Add)) _camera.Zoom += 1.0f * (float)gameTime.ElapsedGameTime.TotalSeconds;
-             if (k.IsKeyDown(Keys.OemMinus) || k.IsKeyDown(Keys.Subtract)) _camera.Zoom -= 1.0f * (float)gameTime.ElapsedGameTime.TotalSeconds;
+            // optional: zoom with + / - keys (speed increased ~2x)
+            if (k.IsKeyDown(Keys.OemPlus) || k.IsKeyDown(Keys.Add)) _camera.Zoom += 1.0f * (float)gameTime.ElapsedGameTime.TotalSeconds;
+            if (k.IsKeyDown(Keys.OemMinus) || k.IsKeyDown(Keys.Subtract)) _camera.Zoom -= 1.0f * (float)gameTime.ElapsedGameTime.TotalSeconds;
 
-             float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
+            float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
 
-             // Click-to-harvest: forward mouse state to InteractionSystem so mining intents start based on hardness/harvestPower
-             if (_interactionSystem != null)
-             {
-                 bool left = m.LeftButton == ButtonState.Pressed;
-                 bool right = m.RightButton == ButtonState.Pressed;
-                 _interactionSystem.HandleMouse(_player, m, left, right);
-             }
-
-             // ALL gameplay logic flows through systems (Tenet #4 - ECS First).
-              _systems.Update(dt);
+            // ALL gameplay logic flows through systems (Tenet #4 - ECS First).
+            _systems.Update(dt);
 
             // After systems update, make the camera follow the player
             if (_playerEntity.IsAlive)
@@ -332,95 +290,6 @@ namespace FaithburnEngine.CoreGame
                 ref var vel = ref _playerEntity.Get<Components.Velocity>();
                 _camera.UpdateFollow(pos.Value, vel.Value, dt);
             }
-
-            // Equip or use pickaxe if available and not already in use
-            bool leftClickEdge = (m.LeftButton == ButtonState.Pressed) && (_prevMouseState.LeftButton == ButtonState.Released);
-            if (_playerEntity.IsAlive && leftClickEdge)
-            {
-                // Check if player is already holding an item
-                if (!_playerEntity.Has<FaithburnEngine.Components.HeldItem>())
-                {
-                    // Get the item ID in the currently active hotbar slot
-                    int hotbarIndex = Math.Clamp(_player.HotbarIndex, 0, HotbarConstants.DisplayCount - 1);
-                    var itemInHotbar = _player.Inventory.Slots[hotbarIndex];
-
-                    // If there's an item in the hotbar slot and it's a proto_pickaxe, equip it
-                    if (!itemInHotbar.IsEmpty && itemInHotbar.ItemId == "proto_pickaxe")
-                    {
-                        var pickaxeItem = _contentLoader.GetItem("proto_pickaxe");
-                        if (pickaxeItem != null && !string.IsNullOrEmpty(pickaxeItem.SpriteRef))
-                        {
-                            var held = CreateHeldItem(pickaxeItem);
-                            _playerEntity.Set(held);
-                        }
-                    }
-                }
-            }
-
-            // Update held-item animation (swing) if present
-            if (_playerEntity.IsAlive && _playerEntity.Has<FaithburnEngine.Components.HeldItem>())
-            {
-                 ref var hi = ref _playerEntity.Get<FaithburnEngine.Components.HeldItem>();
-                 hi.TimeLeft -= dt;
-                 if (hi.TimeLeft <= 0f)
-                 {
-                     // Swing finished; remove component
-                     _playerEntity.Remove<FaithburnEngine.Components.HeldItem>();
-
-                     // If mouse is still held, and the active hotbar slot still has the same pickaxe, start another swing
-                     if (m.LeftButton == ButtonState.Pressed)
-                     {
-                         int hotbarIndex = Math.Clamp(_player.HotbarIndex, 0, HotbarConstants.DisplayCount - 1);
-                         var slot = _player.Inventory.Slots[hotbarIndex];
-                         if (!slot.IsEmpty && slot.ItemId == "proto_pickaxe")
-                         {
-                             var pickaxeItem = _contentLoader.GetItem("proto_pickaxe");
-                             if (pickaxeItem != null && !string.IsNullOrEmpty(pickaxeItem.SpriteRef))
-                             {
-                                 var held2 = CreateHeldItem(pickaxeItem);
-                                 _playerEntity.Set(held2);
-                            }
-                         }
-                     }
-                 }
-                 else
-                 {
-                     float t = 1f - (hi.TimeLeft / Math.Max(0.0001f, hi.Duration)); // 0..1 progress
-                     // simple swing curve: sine from -0.9 to +0.9 radians
-                     float swing = (float)Math.Sin(t * Math.PI) * 0.9f;
-                     hi.Rotation = swing;
-                     _playerEntity.Set(hi);
-                     
-                     // Spawn hitbox at swing peak if not already spawned and item defines hitbox
-                     if (!hi.HitboxSpawned && t >= 0.5f)
-                     {
-                         // Look up item def
-                         var itemDef = _contentLoader.GetItem(hi.ItemId);
-                         if (itemDef != null)
-                         {
-                             // Compute hitbox world rect based on pivot world position (player pos + hi.Offset)
-                             var pivotWorld = _playerEntity.Get<FaithburnEngine.Components.Position>().Value + hi.Offset;
-                             
-                             // Simple default hitbox: 40x20, offset forward from hand
-                             int hw = 40;
-                             int hh = 20;
-                             int ox = 16;
-                             int oy = 0;
-                             
-                             var rect = new Microsoft.Xna.Framework.Rectangle(
-                                 (int)(pivotWorld.X + ox),
-                                 (int)(pivotWorld.Y + oy - hh), // convert to top-left y
-                                 hw,
-                                 hh);
-                             
-                             // Spawn pooled hitbox using cached system
-                             _hitboxSystem.SpawnHitbox(rect, 0.1f, hi.ItemId, _playerEntity);
-                             hi.HitboxSpawned = true;
-                             _playerEntity.Set(hi);
-                         }
-                     }
-                 }
-             }
 
             _prevMouseState = m;
 
@@ -441,8 +310,8 @@ namespace FaithburnEngine.CoreGame
                 _hotbarRenderer.Draw(_player.Inventory, Math.Clamp(_player.HotbarIndex, 0, HotbarConstants.DisplayCount - 1), HotbarConstants.SlotSize, HotbarConstants.DisplayCount, HotbarConstants.Padding);
             }
 
-             base.Draw(gameTime);
-         }
+            base.Draw(gameTime);
+        }
 
         protected override void UnloadContent()
         {
@@ -455,52 +324,28 @@ namespace FaithburnEngine.CoreGame
             base.UnloadContent();
         }
 
-        // Centralized helper to create a HeldItem for an ItemDef using player's current sprite/collider
-        private FaithburnEngine.Components.HeldItem CreateHeldItem(ItemDef item)
+        private void SetUpDisplay()
         {
-            var tex = TextureCache.GetOrLoad(GraphicsDevice, item.SpriteRef);
-            float duration = item.Stats?.Cooldown > 0 ? item.Stats.Cooldown : VisualConstants.DefaultHeldItemDuration;
+            // Get display resolution
+            var displayMode = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode;
 
-            int pW = 0, pH = 0;
-            float pScale = 1f;
-            SpriteEffects pEffects = SpriteEffects.None;
-            bool hasSprite = false;
-            Vector2 colliderSize = Vector2.Zero;
+            // Set backbuffer to match screen resolution
+            _graphics.PreferredBackBufferWidth = displayMode.Width;
+            _graphics.PreferredBackBufferHeight = displayMode.Height;
+            _graphics.IsFullScreen = false; // keep border
+            _graphics.ApplyChanges();
 
-            if (_playerEntity.Has<FaithburnEngine.Components.Sprite>())
-            {
-                ref var ps = ref _playerEntity.Get<FaithburnEngine.Components.Sprite>();
-                if (ps.Texture != null)
-                {
-                    hasSprite = true;
-                    pW = ps.Texture.Width;
-                    pH = ps.Texture.Height;
-                    pScale = ps.Scale <= 0f ? 1f : ps.Scale;
-                }
-                pEffects = ps.Effects;
-            }
-            if (_playerEntity.Has<FaithburnEngine.Components.Collider>())
-            {
-                ref var pc = ref _playerEntity.Get<FaithburnEngine.Components.Collider>();
-                colliderSize = pc.Size;
-            }
+            // Position window at top-left
+            Window.Position = new Point(0, 0);
 
-            var (offset, pivot) = FaithburnEngine.Core.HeldItemHelpers.ComputeVisuals(
-                pW, pH, pScale, pEffects, hasSprite, colliderSize,
-                null, null, null, null,
-                tex?.Height ?? 0);
+            _runner = new DefaultParallelRunner(Environment.ProcessorCount);
+        }
 
-            return new FaithburnEngine.Components.HeldItem
-            {
-                ItemId = item.Id,
-                Texture = tex,
-                Offset = offset,
-                Pivot = pivot,
-                Scale = 1f,
-                Rotation = 0f,
-                Duration = duration,
-                TimeLeft = duration
-            };
+        private void SetUpCamera()
+        {
+            _camera = new Camera2D();
+            _camera.UpdateOrigin(GraphicsDevice.Viewport);
+            _camera.Zoom = desiredZoom;
         }
     }
 }

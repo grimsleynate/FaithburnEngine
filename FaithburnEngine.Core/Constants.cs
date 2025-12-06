@@ -28,27 +28,6 @@ namespace FaithburnEngine.Core
 
             // Collision/snap tuning
             public const float CollisionSkin = 0.5f; // pixels applied inward to AABB checks to reduce corner snagging
-            // Step/climb tuning
-            public const int MaxStepTiles = 1; // how many tiles high the player can step
-            public const float ClimbCooldown = 0.12f; // seconds between successive micro-climbs
-            public const float StepHorizontalThreshold = 4f; // min horizontal speed to consider step-up
-            public const float StepUpLerpSpeed = 8f; // per-second lerp speed for smooth step-up
-        }
-
-        // --- Mining related constants ---
-        public static class Mining
-        {
-            // Max tile distance (Chebyshev) the player can mine from their feet position
-            public const int MaxMiningDistanceTiles = 5;
-
-            // Time (seconds) to retain partial mining progress after player stops mining that tile
-            public const float ProgressRetentionSeconds = 2.0f;
-
-            // Minimum time to break a block (seconds) to avoid division-by-zero or absurd speeds
-            public const float MinTimeToBreak = 0.05f;
-
-            // Optional global modifier applied to all harvest speeds (can be used for difficulty)
-            public const float GlobalHarvestSpeedModifier = 1.0f;
         }
 
         // --- Spritesheet / Character rendering ---

@@ -191,43 +191,6 @@ namespace FaithburnEngine.Systems
                             resolvedX = tileRight + halfW - offset.X + Constants.Player.CollisionSkin;
                             vx = 0f;
                         }
-                        // Step-up probe: only attempt on horizontal collision and when moving sufficiently fast
-                        if (Math.Abs(vx) >= Constants.Player.StepHorizontalThreshold)
-                        {
-                            int maxStepPixels = Constants.Player.MaxStepTiles * tileSize;
-                            float candidateFeetY = fromPos.Y - maxStepPixels; // probe up one tile (Y decreases upward)
-                            // Build probe AABB using CollisionSkin
-                            float probeBottom = candidateFeetY + offset.Y - Constants.Player.CollisionSkin;
-                            float probeTop = probeBottom - h + 2 * Constants.Player.CollisionSkin;
-                            float probeLeft = proposedPos.X - halfW + offset.X + Constants.Player.CollisionSkin;
-                            float probeRight = proposedPos.X + halfW + offset.X - Constants.Player.CollisionSkin;
-
-                            bool areaFree = true;
-                            int lx2 = (int)System.Math.Floor(probeLeft / tileSize);
-                            int rx2 = (int)System.Math.Floor((probeRight - 0.001f) / tileSize);
-                            int ty2 = (int)System.Math.Floor(probeTop / tileSize);
-                            int by2 = (int)System.Math.Floor((probeBottom - 0.001f) / tileSize);
-                            for (int tx2 = lx2; tx2 <= rx2 && areaFree; tx2++)
-                            {
-                                for (int yy2 = ty2; yy2 <= by2; yy2++)
-                                {
-                                    if (_worldGrid.IsSolidTile(new Microsoft.Xna.Framework.Point(tx2, yy2))) { areaFree = false; break; }
-                                }
-                            }
-
-                            if (areaFree)
-                            {
-                                // Schedule smooth step-up and clamp vertical velocity upward to ≤ 0
-                                entity.Set(new FaithburnEngine.Components.StepUpTarget { TargetY = candidateFeetY });
-                                entity.Set(new FaithburnEngine.Components.ClimbCooldown { TimeLeft = Constants.Player.ClimbCooldown });
-                                var vtemp = entity.Get<FaithburnEngine.Components.Velocity>();
-                                vtemp.Value = new Microsoft.Xna.Framework.Vector2(vtemp.Value.X, System.Math.Min(vtemp.Value.Y, 0f));
-                                entity.Set(vtemp);
-                                resolvedX = proposedPos.X;
-                                return vx;
-                            }
-                        }
-
                         return vx;
                     }
                 }

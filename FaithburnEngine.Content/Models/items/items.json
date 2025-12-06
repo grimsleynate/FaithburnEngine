@@ -5,7 +5,7 @@
     "toolKind": "Pickaxe",
     "stackMax": 1,
     "stats": { "damage": 3.0, "harvestPower": 5.0, "cooldown": 0.2 },
-    "spriteRef": "Assets/items/proto_pickaxe.png",
+    "spriteKey": "item.proto_pickaxe",
     "flipToFacePlayer": true
   }
 ]

@@ -6,7 +6,7 @@ namespace FaithburnEngine.Content.Models
     /// <summary>
     /// A destroyable block in the game.
     /// </summary>
-    public sealed class BlockDef : FaithburnEngine.Content.IHarvestable
+    public sealed class BlockDef
     {
         /// <summary>
         /// Unique id for lookup from JSON and in-game references.

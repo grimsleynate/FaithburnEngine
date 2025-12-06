@@ -5,8 +5,7 @@ using System.IO;
 namespace FaithburnEngine.Rendering
 {
     /// <summary>
-    /// Simple runtime texture cache. Loads textures from Content folder via FromStream.
-    /// Replace with MGCB/Atlas manager later.
+    /// Simple runtime texture cache. Prefer AssetRegistry for mod-aware loading.
     /// </summary>
     public static class TextureCache
     {

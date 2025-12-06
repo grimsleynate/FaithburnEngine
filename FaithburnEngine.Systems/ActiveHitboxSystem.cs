@@ -27,8 +27,6 @@ namespace FaithburnEngine.Systems
         }
 
         // Spawn a pooled hitbox entity with given rectangle and lifetime (seconds)
-        // itemId: optional item that caused the hitbox (used for damage/harvest rules)
-        // owner: optional owner entity to avoid friendly-fire
         public Entity SpawnHitbox(Rectangle rect, float life, string? itemId = null, Entity? owner = null)
         {
             Entity e;
@@ -44,62 +42,7 @@ namespace FaithburnEngine.Systems
 
             e.Set(new Hitbox { Rect = rect, TimeLeft = life });
             _active.Add(e);
-
-            // Process immediate collisions (tiles + entities)
-            ProcessHitbox(rect, itemId, owner);
-
             return e;
-        }
-
-        private void ProcessHitbox(Rectangle rect, string? itemId, Entity? owner)
-        {
-            // Tools no longer break tiles via hitboxes; harvesting is click-driven in InteractionSystem
-
-            // 2) Entity interactions: find entities with Collider and Damageable and apply damage
-            // Use DefaultEcs query. This is coarse but acceptable for PoC; optimize later with spatial buckets.
-            foreach (var ent in _world.GetEntities().With<Components.Position>().With<Components.Collider>().AsEnumerable())
-            {
-                if (!ent.IsAlive) continue;
-                if (owner.HasValue && ent == owner.Value) continue;
-
-                ref var pos = ref ent.Get<Components.Position>();
-                ref var col = ref ent.Get<Components.Collider>();
-
-                // compute entity AABB (world space)
-                float halfW = col.Size.X * 0.5f;
-                float bottom = pos.Value.Y + col.Offset.Y;
-                float top = bottom - col.Size.Y;
-                float leftF = pos.Value.X - halfW + col.Offset.X;
-                float rightF = pos.Value.X + halfW + col.Offset.X;
-
-                var entRect = new Rectangle((int)leftF, (int)top, (int)(rightF - leftF), (int)(bottom - top));
-
-                if (rect.Intersects(entRect))
-                {
-                    // apply damage if entity is damageable
-                    if (ent.Has<Damageable>())
-                    {
-                        ref var dam = ref ent.Get<Damageable>();
-                        float dmg = 0f;
-                        if (!string.IsNullOrEmpty(itemId))
-                        {
-                            var idef = _content.GetItem(itemId);
-                            if (idef != null) dmg = idef.Stats?.Damage ?? 0f;
-
-                            // no extra multiplier; use base damage only
-                        }
-
-                        dam.Health -= dmg;
-                        ent.Set(dam);
-
-                        if (dam.Health <= 0f)
-                        {
-                            // simple death: delete entity
-                            ent.Dispose();
-                        }
-                    }
-                }
-            }
         }
 
         public void Update(float dt)

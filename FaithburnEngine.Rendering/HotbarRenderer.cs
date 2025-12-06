@@ -15,13 +15,15 @@ namespace FaithburnEngine.Rendering
         private readonly SpriteFont _font;
         private readonly Texture2D _whitePixel;
         private readonly ContentLoader _content;
+        private readonly AssetRegistry _assets;
 
-        public HotbarRenderer(SpriteBatch sb, ContentLoader content, Texture2D slotBg, SpriteFont font, GraphicsDevice gd)
+        public HotbarRenderer(SpriteBatch sb, ContentLoader content, Texture2D slotBg, SpriteFont font, GraphicsDevice gd, AssetRegistry assets)
         {
             _sb = sb;
             _content = content;
             _slotBg = slotBg;
             _font = font;
+            _assets = assets;
             _whitePixel = new Texture2D(gd, 1, 1);
             _whitePixel.SetData(new[] { Color.White });
         }
@@ -75,15 +77,17 @@ namespace FaithburnEngine.Rendering
                 if (!slot.IsEmpty)
                 {
                     var itemDef = _content.Items.FirstOrDefault(it => it.Id == slot.ItemId);
-                    if (itemDef != null && itemDef.SpriteRef != null)
+                    if (itemDef != null)
                     {
-                        var tex = TextureCache.GetOrLoad(_sb.GraphicsDevice, itemDef.SpriteRef);
+                        Texture2D? tex = null;
+                        if (!string.IsNullOrEmpty(itemDef.SpriteKey))
+                        {
+                            _assets.TryGetTexture(itemDef.SpriteKey, out tex);
+                        }
+
                         if (tex != null)
                         {
-                            // Uniform aspect-fit inside the slot with some padding
                             int iconPad = Math.Max(4, slotSize / 12);
-
-                            // Special-case: make proto_pickaxe a bit smaller (84x84) so it has a buffer
                             int protoMax = 84;
                             int maxW = slotSize - iconPad * 2;
                             int maxH = slotSize - iconPad * 2;
@@ -109,11 +113,9 @@ namespace FaithburnEngine.Rendering
                             _sb.Draw(_whitePixel, new Rectangle(x + iconPad, y + iconPad, slotSize - iconPad * 2, slotSize - iconPad * 2), Color.Gray);
                         }
                     }
-
-                    // Draw count (skipped here if no SpriteFont available)
                 }
 
-                // Draw slot number with padding and horizontal centering
+                // Draw count (skipped here if no SpriteFont available)
                 if (_font != null)
                 {
                     string label = (i < 9) ? (i + 1).ToString() : "0";
