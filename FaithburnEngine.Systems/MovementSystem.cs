@@ -33,6 +33,14 @@ namespace FaithburnEngine.Systems
         {
             foreach (ref readonly var entity in entities)
             {
+                // Skip dropped items - they have their own physics in ItemPickupSystem
+                // WHY: DroppedItem entities have Position+Velocity but should not use player physics.
+                // They use simplified physics that becomes incorporeal when magnetized.
+                if (entity.Has<DroppedItem>()) continue;
+                
+                // Safety check for stale entity references after mid-frame entity changes
+                if (!entity.Has<Position>() || !entity.Has<Velocity>()) continue;
+
                 ref var pos = ref entity.Get<Position>(); // feet position
                 ref var vel = ref entity.Get<Velocity>();
 

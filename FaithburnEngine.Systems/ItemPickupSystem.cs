@@ -69,7 +69,6 @@ namespace FaithburnEngine.Systems
             if (!foundPlayer) return;
 
             // Collect all dropped item entities BEFORE processing
-            // This prevents entity set corruption when new entities are created
             foreach (var e in _world.GetEntities().With<Position>().With<DroppedItem>().AsEnumerable())
             {
                 _entitiesToProcess.Add(e);
@@ -89,7 +88,7 @@ namespace FaithburnEngine.Systems
                     drop.PickupDelay -= dt;
                     entity.Set(drop);
                     
-                    // Still apply gravity while waiting
+                    // Apply physics while waiting (item falls to ground)
                     ApplyPhysics(entity, dt);
                     continue;
                 }
@@ -102,7 +101,7 @@ namespace FaithburnEngine.Systems
                 {
                     if (TryAddToInventory(drop.ItemId, drop.Count))
                     {
-                        // Successfully collected - queue for destruction (don't dispose during iteration)
+                        // Successfully collected - queue for destruction
                         _entitiesToDestroy.Add(entity);
                         continue;
                     }
@@ -122,7 +121,12 @@ namespace FaithburnEngine.Systems
                     drop.IsMagnetized = true;
                     entity.Set(drop);
                     
-                    // Move toward player
+                    // WHY no physics when magnetized: Once an item starts moving toward the player,
+                    // it becomes "incorporeal" - ignoring world collision. This prevents items from
+                    // getting stuck on terrain while trying to reach the player (Terraria-like behavior).
+                    // The item flies directly toward the player regardless of walls or ground.
+                    
+                    // Move directly toward player (no collision checks)
                     Vector2 direction = playerPos - pos.Value;
                     if (direction.LengthSquared() > 0.01f)
                     {
@@ -131,12 +135,12 @@ namespace FaithburnEngine.Systems
                         entity.Set(pos);
                     }
                     
-                    // Skip physics while magnetized
+                    // Skip physics entirely while magnetized
                     continue;
                 }
                 else
                 {
-                    // Outside magnet range - stop magnetizing
+                    // Outside magnet range - apply normal physics (gravity + ground collision)
                     drop.IsMagnetized = false;
                     entity.Set(drop);
                     ApplyPhysics(entity, dt);
@@ -155,6 +159,8 @@ namespace FaithburnEngine.Systems
 
         /// <summary>
         /// Apply simple physics to dropped items (gravity + ground collision).
+        /// WHY only when not magnetized: Items should fall and rest on ground normally,
+        /// but once they start flying toward the player, they ignore all collision.
         /// </summary>
         private void ApplyPhysics(Entity entity, float dt)
         {
@@ -163,16 +169,17 @@ namespace FaithburnEngine.Systems
             ref var pos = ref entity.Get<Position>();
             ref var vel = ref entity.Get<Velocity>();
 
-            // Apply gravity (simplified - less than player gravity for floaty items)
+            // Apply gravity (reduced compared to player for floaty feel)
             vel.Value.Y += Constants.Player.Gravity * 0.5f * dt;
             vel.Value.Y = Math.Min(vel.Value.Y, Constants.Player.MaxFallSpeed * 0.5f);
 
             // Apply velocity
             Vector2 proposed = pos.Value + vel.Value * dt;
 
-            // Simple ground collision
+            // Ground collision - snap to surface
             if (_worldGrid != null)
             {
+                // Check tile directly below item center
                 var tileBelow = _worldGrid.WorldToTileCoord(proposed + new Vector2(0, 8));
                 if (_worldGrid.IsSolidTile(tileBelow))
                 {
@@ -180,9 +187,25 @@ namespace FaithburnEngine.Systems
                     proposed.Y = tileBelow.Y * _worldGrid.TileSize - 1f;
                     vel.Value.Y = 0f;
                     
-                    // Apply friction
-                    vel.Value.X *= 0.9f;
+                    // Apply ground friction
+                    vel.Value.X *= 0.85f;
                     if (Math.Abs(vel.Value.X) < 1f) vel.Value.X = 0f;
+                }
+                
+                // Simple horizontal collision to prevent items from going through walls
+                // Check left/right tiles at item position
+                var tileLeft = _worldGrid.WorldToTileCoord(proposed + new Vector2(-8, 0));
+                var tileRight = _worldGrid.WorldToTileCoord(proposed + new Vector2(8, 0));
+                
+                if (_worldGrid.IsSolidTile(tileLeft) && vel.Value.X < 0)
+                {
+                    proposed.X = (tileLeft.X + 1) * _worldGrid.TileSize + 8f;
+                    vel.Value.X = 0f;
+                }
+                else if (_worldGrid.IsSolidTile(tileRight) && vel.Value.X > 0)
+                {
+                    proposed.X = tileRight.X * _worldGrid.TileSize - 8f;
+                    vel.Value.X = 0f;
                 }
             }
 
